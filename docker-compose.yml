@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+    server:
+        build: .
+        container_name: express_server
+        restart: unless-stopped
+        ports:
+            - "3001:3001"
+        environment:
+            - RABBITMQ_URL=amqp://rabbitmq
+        depends_on:
+            - rabbitmq
+        networks:
+            - app_net
+        command:
+            - ./wait-for-it.sh
+            - rabbitmq
+            - "5672"
+            - node
+            - server/index.js
+    consumer:
+        build: .
+        container_name: consumer_worker
+        restart: unless-stopped
+        environment:
+            - RABBITMQ_URL=amqp://rabbitmq
+        depends_on:
+            - rabbitmq
+        networks:
+            - app_net
+        command:
+            - ./wait-for-it.sh
+            - rabbitmq
+            - "5672"
+            - node
+            - consumer/consumer.js
+
+    rabbitmq:
+        image: rabbitmq:3-management
+        container_name: rabbitmq
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+        networks:
+            - app_net
+
+networks:
+    app_net:
+        driver: bridge
