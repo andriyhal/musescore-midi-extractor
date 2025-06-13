@@ -8,34 +8,35 @@ services:
         ports:
             - "3001:3001"
         environment:
+            - PORT=3001
+            - QUEUE=score_links
             - RABBITMQ_URL=amqp://rabbitmq
-        depends_on:
             - rabbitmq
         networks:
             - app_net
         command:
-            - ./wait-for-it.sh
+            - /app/wait-for-it.sh
             - rabbitmq
             - "5672"
             - node
-            - server/index.js
+            - /app/server/index.js
     consumer:
         build: .
         container_name: consumer_worker
         restart: unless-stopped
         environment:
+            - QUEUE=score_links
             - RABBITMQ_URL=amqp://rabbitmq
         depends_on:
             - rabbitmq
         networks:
             - app_net
         command:
-            - ./wait-for-it.sh
+            - /app/wait-for-it.sh
             - rabbitmq
             - "5672"
             - node
-            - consumer/consumer.js
-
+            - /app/consumer/consumer.js
     rabbitmq:
         image: rabbitmq:3-management
         container_name: rabbitmq

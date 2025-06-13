@@ -5,6 +5,7 @@ const router = express.Router();
 
 router.get("/get-scores-links", extractScoreLinksFromSitemap);
 router.get("/status", (req, res) => {
+    console.log(111);
     res.status(200).json({ status: "ok" });
 });
 

@@ -16,10 +16,10 @@ app.use("/api", apiRoutes);
 
 try {
     await amqp.connect(RABBITMQ_URL);
-    console.log("Connected to RabbitMQ");
-    app.listen(PORT, "0.0.0.0", () => {
-        console.log(`Server running on http://localhost:${PORT}`);
-    });
+    console.log("Connecting to RabbitMQ successful!");
 } catch (err) {
-    console.error("Server error:", err);
+    console.error("Connected to RabbitMQ error:", err);
 }
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
