@@ -4,11 +4,11 @@ import pLimit from "p-limit";
 
 const limit = pLimit(10);
 
-export const getItemsByCategoryAllScoresFromPage = async (url) => {
+export const getAllScoresFromPage = async (url) => {
     try {
         const scoresPageResponse = await axios.get(url);
 
-        if (!sitemapPageResponse.data) return null;
+        if (!scoresPageResponse.data) return null;
 
         const parsedScoresPage = await parseStringPromise(
             scoresPageResponse.data
