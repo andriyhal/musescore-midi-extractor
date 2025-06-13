@@ -91,7 +91,7 @@ const consume = async () => {
                                 ),
                         });
 
-                        const safeUrlPart = url
+                        const safeUrlPart = scoreUrl
                             .replace(/[^a-z0-9]/gi, "_")
                             .toLowerCase()
                             .slice(0, 50);
