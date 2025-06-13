@@ -8,8 +8,9 @@ services:
         ports:
             - "3001:3001"
         environment:
+            - PORT=3001
+            - QUEUE=score_links
             - RABBITMQ_URL=amqp://rabbitmq
-        depends_on:
             - rabbitmq
         networks:
             - app_net
@@ -24,6 +25,7 @@ services:
         container_name: consumer_worker
         restart: unless-stopped
         environment:
+            - QUEUE=score_links
             - RABBITMQ_URL=amqp://rabbitmq
         depends_on:
             - rabbitmq

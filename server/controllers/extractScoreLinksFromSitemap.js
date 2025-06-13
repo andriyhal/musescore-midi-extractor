@@ -30,7 +30,8 @@ const getAllScoresFromPage = async (url) => {
             .map((entry) => entry.loc[0])
             .filter((link) =>
                 /^https:\/\/musescore\.com\/user\/\d+\/scores\/\d+$/.test(link)
-            );
+            )
+            .slice(0, 2); //! Remove
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
 
