@@ -12,12 +12,16 @@ services:
             - QUEUE=score_links
             - RABBITMQ_URL=amqp://rabbitmq
             - rabbitmq
+            - DATABASE_URL=postgresql://myuser:mypassword@postgres:5432/mydatabase?schema=public
         networks:
             - app_net
         command:
             - /app/wait-for-it.sh
             - rabbitmq
             - "5672"
+            - /app/wait-for-it.sh
+            - postgres
+            - "5432"
             - node
             - /app/server/index.js
     consumer:
@@ -27,6 +31,7 @@ services:
         environment:
             - QUEUE=score_links
             - RABBITMQ_URL=amqp://rabbitmq
+            - DATABASE_URL=postgresql://myuser:mypassword@postgres:5432/mydatabase?schema=public
         depends_on:
             - rabbitmq
         networks:
@@ -35,6 +40,9 @@ services:
             - /app/wait-for-it.sh
             - rabbitmq
             - "5672"
+            - /app/wait-for-it.sh
+            - postgres
+            - "5432"
             - node
             - /app/consumer/consumer.js
     rabbitmq:
@@ -45,7 +53,24 @@ services:
             - "15672:15672"
         networks:
             - app_net
+    postgres:
+        image: postgres:14
+        container_name: postgres_db
+        restart: unless-stopped
+        environment:
+            POSTGRES_USER: myuser
+            POSTGRES_PASSWORD: mypassword
+            POSTGRES_DB: mydatabase
+        ports:
+            - "5432:5432"
+        volumes:
+            - postgres_data:/var/lib/postgresql/data
+        networks:
+            - app_net
 
 networks:
     app_net:
         driver: bridge
+
+volumes:
+    postgres_data:

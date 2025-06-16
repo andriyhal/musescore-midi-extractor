@@ -1,12 +1,16 @@
 import express from "express";
+
 import extractScoreLinksFromSitemap from "../controllers/index.js";
+import { addScore } from "../services/prismaScoreDb.js";
 
 const router = express.Router();
 
 router.get("/get-scores-links", extractScoreLinksFromSitemap);
-router.get("/status", (req, res) => {
-    console.log(111);
-    res.status(200).json({ status: "ok" });
+
+router.post("/score", async (req, res) => {
+    const { id, title, url } = req.body;
+    const score = await addScore(id, title, url);
+    res.json(score);
 });
 
 export default router;

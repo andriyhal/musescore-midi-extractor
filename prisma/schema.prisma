@@ -1,0 +1,30 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Score {
+  id               Int      @id @default(autoincrement())
+  title            String?
+  url              String   @unique
+  publisher        String?
+  composer         String?
+  date_created     Int?
+  date_updated     Int?
+  pages            Int?
+  duration         String?
+  info             String?
+  measures         Int?
+  keysig           String?
+  difficultyLevel  Int?
+  genres           String[]
+  instrumentations String[]
+  instruments      String[]
+  categoryPages    String[]
+  scoresJson       Json?
+}

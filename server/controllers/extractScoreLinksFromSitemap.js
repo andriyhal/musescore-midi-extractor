@@ -3,8 +3,10 @@ import { parseStringPromise } from "xml2js";
 import pLimit from "p-limit";
 
 import QueueProducer from "../services/index.js";
+import { addScore } from "../services/prismaScoreDb.js";
+import { delayer } from "../utils/delayer.js";
 
-const limit = pLimit(10);
+const limit10 = pLimit(10);
 const producer = new QueueProducer();
 
 const sitemapScraper = async (url) => {
@@ -21,7 +23,20 @@ const sitemapScraper = async (url) => {
         return null;
     }
 };
+const saveScoresToDbAndQueue = async (scoreUrl) => {
+    try {
+        const urlParts = scoreUrl.split("/");
+        const scoreId = Number(urlParts[urlParts.length - 1]);
 
+        await addScore({ id: scoreId, url: scoreUrl });
+        console.log(`✔ Saved to DB: ${scoreUrl}`);
+
+        await producer.sendMessage(scoreUrl);
+        console.log(`📤 Sent to queue: ${scoreUrl}`);
+    } catch (err) {
+        console.error(`❌ Error processing ${scoreUrl}: ${err.message}`);
+    }
+};
 const getAllScoresFromPage = async (url) => {
     try {
         const parsedScoresPage = await sitemapScraper(url);
@@ -31,11 +46,18 @@ const getAllScoresFromPage = async (url) => {
             .filter((link) =>
                 /^https:\/\/musescore\.com\/user\/\d+\/scores\/\d+$/.test(link)
             )
-            .slice(0, 2); //! Remove
+            .slice(0, 10); //! Remove
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
 
-        await Promise.all(urls.map((url) => producer.sendMessage(url)));
+        await Promise.all(
+            urls.map((url) =>
+                limit10(async () => {
+                    await saveScoresToDbAndQueue(url);
+                    await delayer(1500);
+                })
+            )
+        );
     } catch (error) {
         console.log(`Loading links from page:${url} error:${error.message}`);
         return null;
@@ -57,9 +79,12 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
             message: `Extracting score links started! Total pages from sitemap: ${scorePageLinks.length}`,
         });
         await producer.connect();
-        await Promise.all(
-            scorePageLinks.map((url) => limit(() => getAllScoresFromPage(url)))
-        );
+
+        for (const url of scorePageLinks) {
+            await getAllScoresFromPage(url);
+            await delayer(500);
+        }
+
         await producer.close();
     } catch (error) {
         console.log(`Loading links from sitemap error:${error.message}`);

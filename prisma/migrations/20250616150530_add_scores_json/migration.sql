@@ -1,0 +1,16 @@
+-- AlterTable
+ALTER TABLE "Score" ADD COLUMN     "categoryPages" TEXT[],
+ADD COLUMN     "composer" TEXT,
+ADD COLUMN     "date_created" INTEGER,
+ADD COLUMN     "date_updated" INTEGER,
+ADD COLUMN     "difficultyLevel" INTEGER,
+ADD COLUMN     "duration" TEXT,
+ADD COLUMN     "genres" TEXT[],
+ADD COLUMN     "info" TEXT,
+ADD COLUMN     "instrumentations" TEXT[],
+ADD COLUMN     "instruments" TEXT[],
+ADD COLUMN     "keysig" TEXT,
+ADD COLUMN     "measures" INTEGER,
+ADD COLUMN     "pages" INTEGER,
+ADD COLUMN     "publisher" TEXT,
+ADD COLUMN     "scoresJson" JSONB;

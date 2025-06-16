@@ -14,4 +14,6 @@ RUN chmod +x /usr/local/bin/wait-for-it.sh
 
 EXPOSE 3001
 
+RUN npm run prisma-generate
+
 CMD ["node", "server/index.js"]
