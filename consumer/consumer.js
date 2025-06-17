@@ -3,10 +3,22 @@ import dotenv from "dotenv";
 import axios from "axios";
 import { decode } from "entities";
 import * as cheerio from "cheerio";
-import JSON5 from "json5";
+
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const parseDirty = require("dirty-json").parse;
 
 import { delayer } from "../server/utils/index.js";
 import { updateScore } from "../server/services/prismaScoreDb.js";
+
+import fs from "fs";
+import path from "path";
+import { HttpsProxyAgent } from "https-proxy-agent";
+import {
+    getAvailableProxy,
+    updateProxy,
+} from "../server/services/prismaProxyDb.js";
+import { PROXY_STATUS } from "../server/utils/constants.js";
 
 dotenv.config();
 
@@ -15,10 +27,20 @@ const QUEUE = process.env.QUEUE;
 
 const parsingDataFromPage = async (scoreUrl) => {
     try {
-        const { data: html } = await axios.get(scoreUrl);
+        const data = await getAvailableProxy();
+        console.log(data);
+
+        const proxyUrl =
+            "http://YIv1o5e6V_1:mHt7RHqtVyWS@s-26324.sp6.ovh:11002";
+
+        const agent = new HttpsProxyAgent(proxyUrl);
+
+        const { data: html } = await axios.get(scoreUrl, {
+            httpsAgent: agent,
+            proxy: false,
+        });
 
         const $ = cheerio.load(html);
-
         const jsStoreDiv = $("div.js-store");
 
         if (jsStoreDiv.length === 0) {
@@ -27,77 +49,89 @@ const parsingDataFromPage = async (scoreUrl) => {
                 `div.js-store was not found on the page: ${scoreUrl}`
             );
         }
+
         const dataContent = jsStoreDiv.attr("data-content");
 
-        if (dataContent) {
-            try {
-                const decoded = decode(dataContent);
-
-                const firstBrace = decoded.indexOf("{");
-                const lastBrace = decoded.lastIndexOf("}");
-                const jsonPart = decoded.slice(firstBrace, lastBrace + 1);
-
-                const scoreInformationDetails = JSON5.parse(jsonPart);
-
-                return {
-                    id: scoreInformationDetails.store.score.id,
-                    title: scoreInformationDetails.store.score.title,
-                    url: scoreInformationDetails.store.score.url,
-                    publisher: scoreInformationDetails.store.score.user.name,
-                    composer:
-                        scoreInformationDetails.store.page.data.score
-                            .composer_name,
-                    date_created:
-                        scoreInformationDetails.store.page.data.score
-                            .date_created,
-                    date_updated:
-                        scoreInformationDetails.store.page.data.score
-                            .date_created,
-                    pages: scoreInformationDetails.store.page.data.score
-                        .pages_count,
-                    duration:
-                        scoreInformationDetails.store.page.data.score.duration,
-                    info: scoreInformationDetails.store.page.data.score.body,
-                    measures:
-                        scoreInformationDetails.store.page.data.score.measures,
-                    keysig: scoreInformationDetails.store.page.data.score
-                        .keysig,
-                    difficultyLevel:
-                        scoreInformationDetails.store.page.data.score
-                            .complexity,
-                    genres: scoreInformationDetails.store.page.data.genres.map(
-                        (e) => e.name
-                    ),
-                    instrumentations:
-                        scoreInformationDetails.store.page.data.score.instrumentations.map(
-                            (e) => e.name
-                        ),
-                    instruments:
-                        scoreInformationDetails.store.page.data.score.instruments.map(
-                            (e) => e.name
-                        ),
-                    categoryPages:
-                        scoreInformationDetails.store.page.data.score.category_pages.map(
-                            (e) => e.name
-                        ),
-                    scoresJson: scoreInformationDetails,
-                };
-            } catch (jsonErr) {
-                console.error("Error parsing JSON from data-content:", jsonErr);
-                throw new Error(
-                    "Error parsing JSON from data-content:",
-                    jsonErr
-                );
-            }
-        } else {
+        if (!dataContent) {
             console.warn(
-                "Attribute data-content was not found in div.js-store"
+                `Attribute data-content was not found in div.js-store`
             );
+            throw new Error(`Attribute data-content was not found`);
         }
-    } catch (err) {
-        console.error("Error processing URL:", scoreUrl, err);
 
-        throw new Error("Error processing URL:", scoreUrl, err);
+        const decoded = decode(dataContent);
+
+        const jsonPart = parseDirty(decoded);
+
+        const details = jsonPart;
+        console.log({
+            id: details.store.score.id,
+            title: details.store.score.title,
+            url: details.store.score.url,
+            publisher: details.store.score.user.name,
+            composer: details.store.page.data.score.composer_name,
+            date_created: details.store.page.data.score.date_created,
+            date_updated: details.store.page.data.score.date_updated,
+            pages: details.store.page.data.score.pages_count,
+            duration: details.store.page.data.score.duration,
+            info: details.store.page.data.score.body,
+            measures: details.store.page.data.score.measures,
+            keysig: details.store.page.data.score.keysig,
+            difficultyLevel: details.store.page.data.score.complexity,
+            genres: details.store.page.data.genres.map((e) => e.name),
+            instrumentations:
+                details.store.page.data.score.instrumentations.map(
+                    (e) => e.name
+                ),
+            instruments: details.store.page.data.score.instruments.map(
+                (e) => e.name
+            ),
+            categoryPages: details.store.page.data.score.category_pages.map(
+                (e) => e.name
+            ),
+            scoresJson: details,
+            count_views: details.store.page.data.count_views,
+            count_favorites: details.store.page.data.count_favorites,
+            count_comments: details.store.page.data.count_comments,
+            rating: details.store.page.data.score.rating.rating,
+            rating_count: details.store.page.data.score.rating.count,
+        });
+        await updateProxy({ id: data.id, status: PROXY_STATUS.available });
+        return {
+            id: details.store.score.id,
+            title: details.store.score.title,
+            url: details.store.score.url,
+            publisher: details.store.score.user.name,
+            composer: details.store.page.data.score.composer_name,
+            date_created: details.store.page.data.score.date_created,
+            date_updated: details.store.page.data.score.date_updated,
+            pages: details.store.page.data.score.pages_count,
+            duration: details.store.page.data.score.duration,
+            info: details.store.page.data.score.body,
+            measures: details.store.page.data.score.measures,
+            keysig: details.store.page.data.score.keysig,
+            difficultyLevel: details.store.page.data.score.complexity,
+            genres: details.store.page.data.genres.map((e) => e.name),
+            instrumentations:
+                details.store.page.data.score.instrumentations.map(
+                    (e) => e.name
+                ),
+            instruments: details.store.page.data.score.instruments.map(
+                (e) => e.name
+            ),
+            categoryPages: details.store.page.data.score.category_pages.map(
+                (e) => e.name
+            ),
+            scoresJson: details,
+            count_views: details.store.page.data.count_views,
+            count_favorites: details.store.page.data.count_favorites,
+            count_comments: details.store.page.data.count_comments,
+            rating: details.store.page.data.score.rating.rating,
+            rating_count: details.store.page.data.score.rating.count,
+        };
+    } catch (err) {
+        console.error(`Error processing URL: ${scoreUrl}\n`, err);
+        throw err;
     }
 };
 
@@ -106,7 +140,7 @@ const consume = async () => {
     const ch = await conn.createChannel();
 
     await ch.assertQueue(QUEUE, { durable: true });
-    await ch.prefetch(1);
+    await ch.prefetch(2);
 
     ch.consume(QUEUE, async (msg) => {
         if (msg !== null) {
@@ -114,15 +148,14 @@ const consume = async () => {
             console.log(`Current url: ${scoreUrl}`);
             try {
                 const scoreDat = await parsingDataFromPage(scoreUrl);
-                console.log(scoreDat);
 
                 await updateScore(scoreDat);
-                await delayer(50000);
+                await delayer(1000);
                 ch.ack(msg);
             } catch (err) {
                 console.error(`Consumer Error:${err}`);
-                await delayer(5000);
-                ch.reject(msg, false);
+                await delayer(3000);
+                ch.nack(msg, false, true);
             }
         }
     });

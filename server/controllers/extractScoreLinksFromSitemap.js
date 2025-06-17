@@ -1,17 +1,27 @@
 import axios from "axios";
 import { parseStringPromise } from "xml2js";
 import pLimit from "p-limit";
+import { HttpsProxyAgent } from "https-proxy-agent";
 
 import QueueProducer from "../services/index.js";
 import { addScore } from "../services/prismaScoreDb.js";
 import { delayer } from "../utils/delayer.js";
 
 const limit10 = pLimit(10);
+const limit = pLimit(10);
 const producer = new QueueProducer();
 
 const sitemapScraper = async (url) => {
     try {
-        const pageResponse = await axios.get(url);
+        const proxyUrl =
+            "http://YIv1o5e6V_0:mHt7RHqtVyWS@s-26324.sp6.ovh:11001";
+
+        const agent = new HttpsProxyAgent(proxyUrl);
+
+        const pageResponse = await axios.get(url, {
+            httpsAgent: agent,
+            proxy: false,
+        });
 
         if (!pageResponse.data) return null;
 
@@ -46,7 +56,7 @@ const getAllScoresFromPage = async (url) => {
             .filter((link) =>
                 /^https:\/\/musescore\.com\/user\/\d+\/scores\/\d+$/.test(link)
             )
-            .slice(0, 10); //! Remove
+            .slice(0, 100); //! Remove
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
 
@@ -54,7 +64,6 @@ const getAllScoresFromPage = async (url) => {
             urls.map((url) =>
                 limit10(async () => {
                     await saveScoresToDbAndQueue(url);
-                    await delayer(1500);
                 })
             )
         );
@@ -71,7 +80,8 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
         );
         const scorePageLinks = parsedSitemapPage.sitemapindex.sitemap
             .map((s) => s.loc[0])
-            .filter((link) => /sitemap_scores\d+\.xml$/.test(link));
+            .filter((link) => /sitemap_scores\d+\.xml$/.test(link))
+            .slice(0, 10); //! Remove
 
         console.log(scorePageLinks);
 
@@ -80,10 +90,14 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
         });
         await producer.connect();
 
-        for (const url of scorePageLinks) {
-            await getAllScoresFromPage(url);
-            await delayer(500);
-        }
+        await Promise.all(
+            scorePageLinks.map((url) =>
+                limit(async () => {
+                    await getAllScoresFromPage(url);
+                    await delayer(500);
+                })
+            )
+        );
 
         await producer.close();
     } catch (error) {

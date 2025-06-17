@@ -27,4 +27,26 @@ model Score {
   instruments      String[]
   categoryPages    String[]
   scoresJson       Json?
+  count_views      Int?
+  count_favorites  Int?
+  count_comments   Int?
+  rating           Float?
+  rating_count     Int?
+}
+
+enum ProxyStatus {
+  available
+  busy
+  forbidden
+}
+
+model Proxy {
+  id       Int         @id @default(autoincrement())
+  ip       String
+  port     Int
+  login    String
+  password String
+  status   ProxyStatus
+
+  @@unique([ip, port])
 }
