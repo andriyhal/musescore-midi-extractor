@@ -6,16 +6,17 @@ import {
     getAvailableProxy,
     updateProxy,
 } from "../services/prismaProxyDb.js";
+import { prisma } from "../../prisma/prisma.js";
 
 const router = express.Router();
-
-router.get("/get-scores-links", extractScoreLinksFromSitemap);
 
 router.get("/ping", async (req, res) => {
     res.json({ message: "Pong" });
 });
 
-router.post("/add-proxy", async (req, res) => {
+router.get("/get-scores-links", extractScoreLinksFromSitemap);
+
+router.post("/proxy/add-proxy", async (req, res) => {
     try {
         const { ip, port, login, password } = req.body;
 
@@ -41,8 +42,7 @@ router.post("/add-proxy", async (req, res) => {
         });
     }
 });
-
-router.get("/get-proxy", async (req, res) => {
+router.get("/proxy/get-proxy", async (req, res) => {
     try {
         const proxy = await getAvailableProxy();
 
@@ -66,8 +66,7 @@ router.get("/get-proxy", async (req, res) => {
         });
     }
 });
-
-router.post("/update-proxy", async (req, res) => {
+router.post("/proxy/update-proxy", async (req, res) => {
     try {
         const { id, status } = req.body;
         const proxy = await updateProxy({ id, status });
@@ -92,4 +91,33 @@ router.post("/update-proxy", async (req, res) => {
         });
     }
 });
+
+router.get("/score/store", async (req, res) => {
+    const { url } = req.query;
+
+    if (!url) {
+        return res.status(400).json({ error: "Missing URL parameter" });
+    }
+
+    try {
+        const result = await prisma.score.findUnique({
+            where: { url },
+            select: {
+                scoresJson: true,
+            },
+        });
+
+        if (!result || !result.scoresJson) {
+            return res
+                .status(404)
+                .json({ error: "Score or scoresJson not found" });
+        }
+
+        res.json(result.scoresJson.store);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 export default router;

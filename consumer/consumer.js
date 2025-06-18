@@ -1,6 +1,5 @@
 import amqp from "amqplib";
 import dotenv from "dotenv";
-import axios from "axios";
 import { decode } from "entities";
 import * as cheerio from "cheerio";
 
@@ -8,17 +7,8 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const parseDirty = require("dirty-json").parse;
 
-import { delayer } from "../server/utils/index.js";
+import { delayer, proxyGetRequest } from "../server/utils/index.js";
 import { updateScore } from "../server/services/prismaScoreDb.js";
-
-import fs from "fs";
-import path from "path";
-import { HttpsProxyAgent } from "https-proxy-agent";
-import {
-    getAvailableProxy,
-    updateProxy,
-} from "../server/services/prismaProxyDb.js";
-import { PROXY_STATUS } from "../server/utils/constants.js";
 
 dotenv.config();
 
@@ -27,18 +17,7 @@ const QUEUE = process.env.QUEUE;
 
 const parsingDataFromPage = async (scoreUrl) => {
     try {
-        const data = await getAvailableProxy();
-        console.log(data);
-
-        const proxyUrl =
-            "http://YIv1o5e6V_1:mHt7RHqtVyWS@s-26324.sp6.ovh:11002";
-
-        const agent = new HttpsProxyAgent(proxyUrl);
-
-        const { data: html } = await axios.get(scoreUrl, {
-            httpsAgent: agent,
-            proxy: false,
-        });
+        const { data: html } = await proxyGetRequest(scoreUrl);
 
         const $ = cheerio.load(html);
         const jsStoreDiv = $("div.js-store");
@@ -64,39 +43,8 @@ const parsingDataFromPage = async (scoreUrl) => {
         const jsonPart = parseDirty(decoded);
 
         const details = jsonPart;
-        console.log({
-            id: details.store.score.id,
-            title: details.store.score.title,
-            url: details.store.score.url,
-            publisher: details.store.score.user.name,
-            composer: details.store.page.data.score.composer_name,
-            date_created: details.store.page.data.score.date_created,
-            date_updated: details.store.page.data.score.date_updated,
-            pages: details.store.page.data.score.pages_count,
-            duration: details.store.page.data.score.duration,
-            info: details.store.page.data.score.body,
-            measures: details.store.page.data.score.measures,
-            keysig: details.store.page.data.score.keysig,
-            difficultyLevel: details.store.page.data.score.complexity,
-            genres: details.store.page.data.genres.map((e) => e.name),
-            instrumentations:
-                details.store.page.data.score.instrumentations.map(
-                    (e) => e.name
-                ),
-            instruments: details.store.page.data.score.instruments.map(
-                (e) => e.name
-            ),
-            categoryPages: details.store.page.data.score.category_pages.map(
-                (e) => e.name
-            ),
-            scoresJson: details,
-            count_views: details.store.page.data.count_views,
-            count_favorites: details.store.page.data.count_favorites,
-            count_comments: details.store.page.data.count_comments,
-            rating: details.store.page.data.score.rating.rating,
-            rating_count: details.store.page.data.score.rating.count,
-        });
-        await updateProxy({ id: data.id, status: PROXY_STATUS.available });
+        console.log(`Url: ${scoreUrl} done!`);
+
         return {
             id: details.store.score.id,
             title: details.store.score.title,
@@ -140,7 +88,7 @@ const consume = async () => {
     const ch = await conn.createChannel();
 
     await ch.assertQueue(QUEUE, { durable: true });
-    await ch.prefetch(2);
+    await ch.prefetch(6);
 
     ch.consume(QUEUE, async (msg) => {
         if (msg !== null) {
@@ -154,8 +102,8 @@ const consume = async () => {
                 ch.ack(msg);
             } catch (err) {
                 console.error(`Consumer Error:${err}`);
-                await delayer(3000);
-                ch.nack(msg, false, true);
+                await delayer(5000);
+                ch.nack(msg, false, false);
             }
         }
     });
@@ -164,5 +112,5 @@ const consume = async () => {
 consume().catch(console.error);
 
 // (async () => {
-//     await parsingDataFromPage("https://musescore.com/user/3/scores/410");
+//     await parsingDataFromPage("https://musescore.com/user/46351/scores/64640");
 // })();

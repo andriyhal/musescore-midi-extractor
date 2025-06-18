@@ -31,28 +31,25 @@ export const getAvailableProxy = async () => {
     let attempts = 0;
 
     while (attempts < MAX_RETRIES) {
-        const proxy = await prisma.$transaction(async (tx) => {
-            const availableProxy = await tx.proxy.findFirst({
-                where: { status: PROXY_STATUS.available },
-                orderBy: { id: "asc" },
-            });
+        const [proxy] = await prisma.$queryRaw`
+            SELECT * FROM "Proxy"
+            WHERE status = ${PROXY_STATUS.available}::"ProxyStatus"
+            ORDER BY RANDOM()
+            LIMIT 1
+        `;
 
-            if (!availableProxy) return null;
-
-            const updatedProxy = await tx.proxy.update({
-                where: { id: availableProxy.id },
-                data: { status: PROXY_STATUS.busy },
-            });
-
-            return updatedProxy;
-        });
-
-        if (proxy) {
-            return proxy;
-        } else {
+        if (!proxy) {
             attempts++;
             await delayer(500);
+            continue;
         }
+
+        const updatedProxy = await prisma.proxy.update({
+            where: { id: proxy.id },
+            data: { status: PROXY_STATUS.busy },
+        });
+
+        return updatedProxy;
     }
 
     return null;
