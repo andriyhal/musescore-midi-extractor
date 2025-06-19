@@ -66,7 +66,7 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
         const scorePageLinks = parsedSitemapPage.sitemapindex.sitemap
             .map((s) => s.loc[0])
             .filter((link) => /sitemap_scores\d+\.xml$/.test(link))
-            .slice(2, 3); //! Remove
+            .slice(3, 4); //! Remove
 
         console.log(scorePageLinks);
 
