@@ -1,39 +1,29 @@
 import axios from "axios";
 import { HttpsProxyAgent } from "https-proxy-agent";
-import { getAvailableProxy, updateProxy } from "../services/prismaProxyDb.js";
-import { PROXY_STATUS } from "./constants.js";
+import dotenv from "dotenv";
+dotenv.config();
 
 export const proxyGetRequest = async (url, axiosConfig = {}) => {
-    let proxyData = null;
-    let statusToSet = PROXY_STATUS.available;
+    const proxyHost = process.env.PROXY_HOST;
+    const proxyPort = process.env.PROXY_PORT;
+    const username = process.env.PROXY_USERNAME;
+    const password = process.env.PROXY_PASS;
+
+    const agent = new HttpsProxyAgent(
+        `http://${username}:${password}@${proxyHost}:${proxyPort}`
+    );
+
     try {
-        proxyData = await getAvailableProxy();
-
-        const proxyUrl = `http://${proxyData.login}:${proxyData.password}@${proxyData.ip}:${proxyData.port}`;
-        const agent = new HttpsProxyAgent(proxyUrl);
-
         const response = await axios.get(url, {
             ...axiosConfig,
-            httpsAgent: agent,
             proxy: false,
+            httpAgent: agent,
+            httpsAgent: agent,
         });
 
-        return { data: response.data, proxyData };
+        return { data: response.data };
     } catch (error) {
-        if (error.response && error.response.status === 403 && proxyData) {
-            statusToSet = PROXY_STATUS.forbidden;
-
-            throw new Error(
-                `Request failed with status code 403. Proxy: ${proxyData.id}`
-            );
-        }
+        console.error(`Proxy request failed: ${error.message}`);
         throw error;
-    } finally {
-        if (proxyData) {
-            await updateProxy({
-                id: proxyData.id,
-                status: statusToSet,
-            });
-        }
     }
 };

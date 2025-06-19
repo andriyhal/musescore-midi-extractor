@@ -1,3 +1,6 @@
 import { extractScoreLinksFromSitemap } from "./extractScoreLinksFromSitemap.js";
+import { getScoresData } from "./getScoresData.js";
 
-export default [extractScoreLinksFromSitemap];
+export { extractScoreLinksFromSitemap } from "./extractScoreLinksFromSitemap.js";
+
+export { getScoresData } from "./getScoresData.js";

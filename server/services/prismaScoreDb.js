@@ -16,8 +16,36 @@ export const addScore = async (data) => {
 
 export const updateScore = async (data) => {
     const { url, ...updateData } = data;
-    return await prisma.score.update({
-        where: { url },
-        data: updateData,
-    });
+    try {
+        for (const key in updateData) {
+            if (typeof updateData[key] === "string") {
+                updateData[key] = updateData[key].replace(/\x00/g, "");
+            }
+        }
+        return await prisma.score.update({
+            where: { url },
+            data: updateData,
+        });
+    } catch (error) {
+        throw new Error(`Update error:${error.message} in url:${url}`);
+    }
+};
+export const getScores = async (genre, instrumentations, instruments) => {
+    try {
+        return await prisma.score.findMany({
+            where: {
+                genres: {
+                    has: genre,
+                },
+                instrumentations: {
+                    has: instrumentations,
+                },
+                instruments: {
+                    has: instruments,
+                },
+            },
+        });
+    } catch (error) {
+        throw new Error("Error while retrieving data");
+    }
 };

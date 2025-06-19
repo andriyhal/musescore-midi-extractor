@@ -6,8 +6,6 @@ import { addScore } from "../services/prismaScoreDb.js";
 import { delayer } from "../utils/delayer.js";
 import { proxyGetRequest } from "../utils/proxyRequest.js";
 
-const limit10 = pLimit(10);
-const limit5 = pLimit(5);
 const producer = new QueueProducer();
 
 const sitemapScraper = async (url) => {
@@ -33,9 +31,9 @@ const saveScoresToDbAndQueue = async (scoreUrl) => {
         console.log(`✔ Saved to DB: ${scoreUrl}`);
 
         await producer.sendMessage(scoreUrl);
-        console.log(`📤 Sent to queue: ${scoreUrl}`);
+        console.log(`Sent to queue: ${scoreUrl}`);
     } catch (err) {
-        console.error(`❌ Error processing ${scoreUrl}: ${err.message}`);
+        console.error(`Error processing ${scoreUrl}: ${err.message}`);
     }
 };
 const getAllScoresFromPage = async (url) => {
@@ -47,7 +45,7 @@ const getAllScoresFromPage = async (url) => {
             .filter((link) =>
                 /^https:\/\/musescore\.com\/user\/\d+\/scores\/\d+$/.test(link)
             )
-            .slice(0, 100); //! Remove
+            .slice(0, 1); //! Remove
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
 
@@ -68,7 +66,7 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
         const scorePageLinks = parsedSitemapPage.sitemapindex.sitemap
             .map((s) => s.loc[0])
             .filter((link) => /sitemap_scores\d+\.xml$/.test(link))
-            .slice(0, 10); //! Remove
+            .slice(2, 3); //! Remove
 
         console.log(scorePageLinks);
 
