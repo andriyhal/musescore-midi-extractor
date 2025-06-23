@@ -44,8 +44,7 @@ const getAllScoresFromPage = async (url) => {
             .map((entry) => entry.loc[0])
             .filter((link) =>
                 /^https:\/\/musescore\.com\/user\/\d+\/scores\/\d+$/.test(link)
-            )
-            .slice(0, 1); //! Remove
+            );
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
 
@@ -59,6 +58,14 @@ const getAllScoresFromPage = async (url) => {
 };
 
 export const extractScoreLinksFromSitemap = async (req, res) => {
+    let { page } = req.query;
+    page = parseInt(page) || 0;
+
+    const pageSize = 1;
+
+    const start = page * pageSize;
+    const end = start + pageSize;
+
     try {
         const parsedSitemapPage = await sitemapScraper(
             "https://musescore.com/sitemap.xml"
@@ -66,7 +73,7 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
         const scorePageLinks = parsedSitemapPage.sitemapindex.sitemap
             .map((s) => s.loc[0])
             .filter((link) => /sitemap_scores\d+\.xml$/.test(link))
-            .slice(3, 4); //! Remove
+            .slice(start, end);
 
         console.log(scorePageLinks);
 
@@ -79,15 +86,6 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
             await getAllScoresFromPage(url);
             await delayer(1000);
         }
-
-        // await Promise.all(
-        //     scorePageLinks.map((url) =>
-        //         limit5(async () => {
-        //             await getAllScoresFromPage(url);
-        //             await delayer(2000);
-        //         })
-        //     )
-        // );
 
         await producer.close();
     } catch (error) {
