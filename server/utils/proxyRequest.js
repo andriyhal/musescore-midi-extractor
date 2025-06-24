@@ -16,9 +16,9 @@ export const proxyGetRequest = async (url, axiosConfig = {}) => {
     try {
         const response = await axios.get(url, {
             ...axiosConfig,
-            // proxy: false,
-            // httpAgent: agent,
-            // httpsAgent: agent,
+            proxy: false,
+            httpAgent: agent,
+            httpsAgent: agent,
         });
         console.log(response.status);
 
