@@ -8,6 +8,7 @@ export const getScoresData = async (req, res) => {
     }
     try {
         const scores = await getScores(genre, instrumentations, instruments);
+        console.log(`Results:${scores.length}`);
 
         res.json(scores);
     } catch (error) {

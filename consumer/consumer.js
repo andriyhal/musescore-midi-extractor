@@ -130,7 +130,7 @@ const parsingDataFromPage = async (scoreUrl) => {
             categoryPages: details.store.page.data.score.category_pages.map(
                 (e) => e.name
             ),
-            scoresJson: details,
+            scoresJson: details.store,
             count_views: details.store.page.data.count_views,
             count_favorites: details.store.page.data.count_favorites,
             count_comments: details.store.page.data.count_comments,
@@ -138,7 +138,9 @@ const parsingDataFromPage = async (scoreUrl) => {
             rating_count: details.store.page.data.score.rating.count,
         };
     } catch (err) {
-        console.error(`Error processing URL: ${scoreUrl}\n`, err);
+        console.error(
+            `Error processing URL: ${scoreUrl}. Status:${err.status}\n`
+        );
         throw err;
     }
 };
@@ -165,6 +167,9 @@ const consume = async () => {
                 if (err instanceof ParseError) {
                     console.error(`Parse Error: ${err.message}`);
                     ch.nack(msg, false, false); // DO NOT REQUEUE
+                } else if (err.status === 404) {
+                    console.error(`404 Not Found: ${scoreUrl}`);
+                    ch.nack(msg, false, false); // DO NOT REQUEUE
                 } else {
                     console.error(`Consumer Error: ${err}`);
                     await delayer(5000);
@@ -178,5 +183,12 @@ const consume = async () => {
 consume().catch(console.error);
 
 // (async () => {
-//     await parsingDataFromPage("https://musescore.com/user/4600/scores/7586");
+//     try {
+//         await parsingDataFromPage(
+//             "https://musescore.com/user/4150/scores/5147"
+//         );
+//     } catch (err) {
+//         console.error(`Caught top-level error: ${err.message}`);
+//         console.error(`Status: ${err.status}`);
+//     }
 // })();

@@ -7,7 +7,7 @@ import { delayer } from "../utils/delayer.js";
 import { proxyGetRequest } from "../utils/proxyRequest.js";
 
 const producer = new QueueProducer();
-
+const limit10 = pLimit(10);
 const sitemapScraper = async (url) => {
     try {
         const pageResponse = await proxyGetRequest(url);
@@ -47,9 +47,13 @@ const getAllScoresFromPage = async (url) => {
             );
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
-
         await Promise.all(
-            urls.map(async (url) => await saveScoresToDbAndQueue(url))
+            urls.map((url) =>
+                limit10(async () => {
+                    await saveScoresToDbAndQueue(url);
+                    await delayer(500);
+                })
+            )
         );
     } catch (error) {
         console.log(`Loading links from page:${url} error:${error.message}`);

@@ -16,14 +16,22 @@ export const proxyGetRequest = async (url, axiosConfig = {}) => {
     try {
         const response = await axios.get(url, {
             ...axiosConfig,
-            proxy: false,
-            httpAgent: agent,
-            httpsAgent: agent,
+            // proxy: false,
+            // httpAgent: agent,
+            // httpsAgent: agent,
         });
+        console.log(response.status);
 
         return { data: response.data };
     } catch (error) {
-        console.error(`Proxy request failed: ${error.message}`);
-        throw error;
+        const status = error.response?.status || null;
+        console.error(
+            `Proxy request failed: ${error.message}, status: ${status}`
+        );
+        const err = new Error(
+            `Failed to fetch data from ${url} via proxy: ${error.message}`
+        );
+        err.status = status;
+        throw err;
     }
 };
