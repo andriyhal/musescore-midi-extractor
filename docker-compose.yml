@@ -20,7 +20,7 @@ services:
             - rabbitmq
             - "5672"
             - /app/wait-for-it.sh
-            - postgres
+            - musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com
             - "5432"
             - node
             - /app/server/index.js
@@ -41,10 +41,10 @@ services:
             - rabbitmq
             - "5672"
             - /app/wait-for-it.sh
-            - postgres
+            - musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com
             - "5432"
             - node
-            - /app/consumer/consumer.js
+            - /app/server/index.js
     rabbitmq:
         image: rabbitmq:3-management
         container_name: rabbitmq
@@ -57,6 +57,3 @@ services:
 networks:
     app_net:
         driver: bridge
-
-volumes:
-    postgres_data:
