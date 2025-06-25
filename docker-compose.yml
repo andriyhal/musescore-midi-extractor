@@ -12,7 +12,7 @@ services:
             - QUEUE=score_links
             - RABBITMQ_URL=amqp://rabbitmq
             - rabbitmq
-            - DATABASE_URL=postgresql://myuser:mypassword@postgres:5432/mydatabase?schema=public
+            - DATABASE_URL=postgresql://postgres:ZMM5n72yUAdreTC3v9jZ@musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com:5432/musescore?schema=public
         networks:
             - app_net
         command:
@@ -31,7 +31,7 @@ services:
         environment:
             - QUEUE=score_links
             - RABBITMQ_URL=amqp://rabbitmq
-            - DATABASE_URL=postgresql://myuser:mypassword@postgres:5432/mydatabase?schema=public
+            - DATABASE_URL=postgresql://postgres:ZMM5n72yUAdreTC3v9jZ@musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com:5432/musescore?schema=public
         depends_on:
             - rabbitmq
         networks:
@@ -51,20 +51,6 @@ services:
         ports:
             - "5672:5672"
             - "15672:15672"
-        networks:
-            - app_net
-    postgres:
-        image: postgres:14
-        container_name: postgres_db
-        restart: unless-stopped
-        environment:
-            POSTGRES_USER: myuser
-            POSTGRES_PASSWORD: mypassword
-            POSTGRES_DB: mydatabase
-        ports:
-            - "5432:5432"
-        volumes:
-            - postgres_data:/var/lib/postgresql/data
         networks:
             - app_net
 

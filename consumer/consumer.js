@@ -14,7 +14,7 @@ dotenv.config();
 
 const RABBITMQ_URL = process.env.RABBITMQ_URL;
 const QUEUE = process.env.QUEUE;
-const PARALLEL_REQUEST = 10;
+const PARALLEL_REQUEST = 20;
 
 class ParseError extends Error {
     constructor(message) {
@@ -161,18 +161,20 @@ const consume = async () => {
 
                 await updateScore(scoreDat);
                 console.log(`Url: ${scoreUrl} done!`);
-                await delayer(5000);
+                await delayer(2500);
                 ch.ack(msg);
             } catch (err) {
                 if (err instanceof ParseError) {
                     console.error(`Parse Error: ${err.message}`);
                     ch.nack(msg, false, false); // DO NOT REQUEUE
+                    await delayer(3000);
                 } else if (err.status === 404) {
                     console.error(`404 Not Found: ${scoreUrl}`);
                     ch.nack(msg, false, false); // DO NOT REQUEUE
+                    await delayer(3000);
                 } else {
                     console.error(`Consumer Error: ${err}`);
-                    await delayer(5000);
+                    await delayer(3000);
                     ch.nack(msg, false, true); // REQUEUE for retry
                 }
             }

@@ -30,9 +30,18 @@ export const updateScore = async (data) => {
         throw new Error(`Update error:${error.message} in url:${url}`);
     }
 };
-export const getScores = async (genre, instrumentations, instruments) => {
+
+export const getScores = async (
+    genre,
+    instrumentations,
+    instruments,
+    page,
+    pageSize
+) => {
     try {
-        return await prisma.score.findMany({
+        const skip = (page - 1) * pageSize;
+
+        const total = await prisma.score.count({
             where: {
                 genres: {
                     has: genre,
@@ -45,6 +54,23 @@ export const getScores = async (genre, instrumentations, instruments) => {
                 },
             },
         });
+
+        const results = await prisma.score.findMany({
+            where: {
+                genres: {
+                    has: genre,
+                },
+                instrumentations: {
+                    has: instrumentations,
+                },
+                instruments: {
+                    has: instruments,
+                },
+            },
+            skip,
+            take: pageSize,
+        });
+        return { total, results };
     } catch (error) {
         throw new Error("Error while retrieving data");
     }
