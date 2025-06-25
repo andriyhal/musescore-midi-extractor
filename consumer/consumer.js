@@ -75,7 +75,7 @@ const parsingDataFromPage = async (scoreUrl) => {
             );
         }
 
-        const jsonPartdetails = jsonPart;
+        const details = jsonPart;
 
         // console.log({
         //     id: details.store.score.id,
@@ -187,15 +187,15 @@ const consume = async () => {
     });
 };
 
-//consume().catch(console.error);
+consume().catch(console.error);
 
-(async () => {
-    try {
-        await parsingDataFromPage(
-            "https://musescore.com/user/42725/scores/107770"
-        );
-    } catch (err) {
-        console.error(`Caught top-level error: ${err.message}`);
-        console.error(`Status: ${err.status}`);
-    }
-})();
+// (async () => {
+//     try {
+//         await parsingDataFromPage(
+//             "https://musescore.com/user/42725/scores/107770"
+//         );
+//     } catch (err) {
+//         console.error(`Caught top-level error: ${err.message}`);
+//         console.error(`Status: ${err.status}`);
+//     }
+// })();
