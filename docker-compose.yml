@@ -44,7 +44,7 @@ services:
             - musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com
             - "5432"
             - node
-            - /app/server/index.js
+            - /app/consumer/consumer.js
     rabbitmq:
         image: rabbitmq:3-management
         container_name: rabbitmq
