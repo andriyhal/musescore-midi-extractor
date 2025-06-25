@@ -45,7 +45,6 @@ const getAllScoresFromPage = async (url) => {
             .filter((link) =>
                 /^https:\/\/musescore\.com\/user\/\d+\/scores\/\d+$/.test(link)
             )
-            .slice(0, 1);
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
         await Promise.all(
