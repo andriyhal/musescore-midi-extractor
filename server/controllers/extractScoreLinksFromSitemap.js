@@ -7,7 +7,7 @@ import { delayer } from "../utils/delayer.js";
 import { proxyGetRequest } from "../utils/proxyRequest.js";
 
 const producer = new QueueProducer();
-const limit10 = pLimit(10);
+const limit = pLimit(20);
 const sitemapScraper = async (url) => {
     try {
         const pageResponse = await proxyGetRequest(url);
@@ -44,12 +44,13 @@ const getAllScoresFromPage = async (url) => {
             .map((entry) => entry.loc[0])
             .filter((link) =>
                 /^https:\/\/musescore\.com\/user\/\d+\/scores\/\d+$/.test(link)
-            );
+            )
+            .slice(0, 1);
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
         await Promise.all(
             urls.map((url) =>
-                limit10(async () => {
+                limit(async () => {
                     await saveScoresToDbAndQueue(url);
                     await delayer(500);
                 })

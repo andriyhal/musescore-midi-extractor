@@ -2,15 +2,29 @@ import { prisma } from "../../prisma/prisma.js";
 import { getScores } from "../services/prismaScoreDb.js";
 
 export const getScoresData = async (req, res) => {
-    const { genre, instrumentations, instruments } = req.body;
+    const { genre, instrumentations, instruments, page = 1, offset } = req.body;
     if (!genre || !instrumentations || !instruments) {
         throw new Error("Missing required fields");
     }
     try {
-        const scores = await getScores(genre, instrumentations, instruments);
-        console.log(`Results:${scores.length}`);
+        let pageSize = parseInt(offset);
+        if (isNaN(offset) || offset <= 0) pageSize = 10;
+        if (pageSize > 1000) pageSize = 1000;
 
-        res.json(scores);
+        const { total, results } = await getScores(
+            genre,
+            instrumentations,
+            instruments,
+            page,
+            pageSize
+        );
+
+        res.json({
+            page,
+            pageSize,
+            total,
+            results,
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Internal server error" });

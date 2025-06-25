@@ -20,7 +20,6 @@ export const proxyGetRequest = async (url, axiosConfig = {}) => {
             httpAgent: agent,
             httpsAgent: agent,
         });
-        console.log(response.status);
 
         return { data: response.data };
     } catch (error) {
