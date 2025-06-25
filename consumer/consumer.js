@@ -69,8 +69,13 @@ const parsingDataFromPage = async (scoreUrl) => {
                 `Failed to decode or parse JSON: ${err.message}`
             );
         }
+        if (!jsonPart || !jsonPart.store) {
+            throw new ParseError(
+                `Failed to decode or parse JSON, details is missing or malformed: ${scoreUrl}`
+            );
+        }
 
-        const details = jsonPart;
+        const jsonPartdetails = jsonPart;
 
         // console.log({
         //     id: details.store.score.id,
@@ -182,15 +187,15 @@ const consume = async () => {
     });
 };
 
-consume().catch(console.error);
+//consume().catch(console.error);
 
-// (async () => {
-//     try {
-//         await parsingDataFromPage(
-//             "https://musescore.com/user/4150/scores/5147"
-//         );
-//     } catch (err) {
-//         console.error(`Caught top-level error: ${err.message}`);
-//         console.error(`Status: ${err.status}`);
-//     }
-// })();
+(async () => {
+    try {
+        await parsingDataFromPage(
+            "https://musescore.com/user/42725/scores/107770"
+        );
+    } catch (err) {
+        console.error(`Caught top-level error: ${err.message}`);
+        console.error(`Status: ${err.status}`);
+    }
+})();
