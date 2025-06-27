@@ -9,11 +9,13 @@ datasource db {
 }
 
 model Score {
-  id               Int      @id @default(autoincrement())
+  id               String   @id @default(cuid())
+  musescore_id     Int
   title            String?
   url              String   @unique
   publisher        String?
   composer         String?
+  artist           String?
   date_created     Int?
   date_updated     Int?
   pages            Int?
@@ -32,4 +34,5 @@ model Score {
   count_comments   Int?
   rating           Float?
   rating_count     Int?
+  is_download      Boolean  @default(false)
 }

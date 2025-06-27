@@ -22,12 +22,18 @@ export const updateScore = async (data) => {
                 updateData[key] = updateData[key].replace(/\x00/g, "");
             }
         }
+
+        const existing = await prisma.score.findUnique({ where: { url } });
+        if (!existing) {
+            throw new Error(`Score with url:${url} not found`);
+        }
+
         return await prisma.score.update({
             where: { url },
             data: updateData,
         });
     } catch (error) {
-        throw new Error(`Update error:${error.message} in url:${url}`);
+        throw new Error(`Update error: ${error.message}`);
     }
 };
 
@@ -69,6 +75,12 @@ export const getScores = async (
             },
             skip,
             take: pageSize,
+            select: {
+                url: true,
+                artist: true,
+                title: true,
+                publisher: true,
+            },
         });
         return { total, results };
     } catch (error) {

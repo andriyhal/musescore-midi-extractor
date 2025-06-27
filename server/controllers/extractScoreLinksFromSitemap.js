@@ -27,7 +27,7 @@ const saveScoresToDbAndQueue = async (scoreUrl) => {
         const urlParts = scoreUrl.split("/");
         const scoreId = Number(urlParts[urlParts.length - 1]);
 
-        await addScore({ id: scoreId, url: scoreUrl });
+        await addScore({ musescore_id: scoreId, url: scoreUrl });
         console.log(`✔ Saved to DB: ${scoreUrl}`);
 
         await producer.sendMessage(scoreUrl);
@@ -44,7 +44,7 @@ const getAllScoresFromPage = async (url) => {
             .map((entry) => entry.loc[0])
             .filter((link) =>
                 /^https:\/\/musescore\.com\/user\/\d+\/scores\/\d+$/.test(link)
-            )
+            );
 
         console.log(`✔ Found ${urls.length} scores on page ${url}`);
         await Promise.all(

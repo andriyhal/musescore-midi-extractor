@@ -1,7 +1,9 @@
 import express from "express";
 import {
+    getScore,
     getScoresData,
     extractScoreLinksFromSitemap,
+    updateScoreData,
 } from "../controllers/index.js";
 
 const router = express.Router();
@@ -12,6 +14,8 @@ router.get("/ping", async (req, res) => {
 
 router.get("/get-scores-links", extractScoreLinksFromSitemap);
 
-router.post("/scores-data", getScoresData);
+router.get("/score", getScore);
+router.post("/scores", getScoresData);
+router.patch("/score-status", updateScoreData);
 
 export default router;

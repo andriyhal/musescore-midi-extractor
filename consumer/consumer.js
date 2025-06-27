@@ -111,11 +111,12 @@ const parsingDataFromPage = async (scoreUrl) => {
         // });
 
         return {
-            id: details.store.score.id,
+            musescore_id: details.store.score.id,
             title: details.store.score.title,
             url: scoreUrl,
             publisher: details.store.score.user.name,
             composer: details.store.page.data.score.composer_name,
+            artist: details.store.page.data.score.artist_name,
             date_created: details.store.page.data.score.date_created,
             date_updated: details.store.page.data.score.date_updated,
             pages: details.store.page.data.score.pages_count,
