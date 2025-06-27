@@ -21,7 +21,7 @@ export const getScoresData = async (req, res) => {
 
         res.json({
             page,
-            pageSize,
+            offset: pageSize,
             total,
             results,
         });
