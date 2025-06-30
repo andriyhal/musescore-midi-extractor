@@ -76,6 +76,8 @@ export const getScores = async (
             skip,
             take: pageSize,
             select: {
+                id: true,
+                musescore_id: true,
                 url: true,
                 artist: true,
                 title: true,
