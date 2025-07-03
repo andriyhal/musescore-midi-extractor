@@ -1,7 +1,7 @@
 import { parseStringPromise } from "xml2js";
 import pLimit from "p-limit";
 
-import QueueProducer from "../services/index.js";
+import { QueueProducer } from "../services/index.js";
 import { addScore } from "../services/prismaScoreDb.js";
 import { delayer } from "../utils/delayer.js";
 import { proxyGetRequest } from "../utils/proxyRequest.js";

@@ -58,6 +58,7 @@ export const getScores = async (
                 instruments: {
                     has: instruments,
                 },
+                is_download: false,
             },
         });
 
@@ -72,6 +73,7 @@ export const getScores = async (
                 instruments: {
                     has: instruments,
                 },
+                is_download: false,
             },
             skip,
             take: pageSize,
@@ -86,6 +88,8 @@ export const getScores = async (
         });
         return { total, results };
     } catch (error) {
+        console.log(error);
+
         throw new Error("Error while retrieving data");
     }
 };

@@ -7,12 +7,8 @@ services:
         restart: unless-stopped
         ports:
             - "3001:3001"
-        environment:
-            - PORT=3001
-            - QUEUE=score_links
-            - RABBITMQ_URL=amqp://rabbitmq
-            - rabbitmq
-            - DATABASE_URL=postgresql://postgres:ZMM5n72yUAdreTC3v9jZ@musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com:5432/musescore?schema=public
+        env_file:
+            - .env
         networks:
             - app_net
         command:
@@ -28,10 +24,8 @@ services:
         build: .
         container_name: consumer_worker
         restart: unless-stopped
-        environment:
-            - QUEUE=score_links
-            - RABBITMQ_URL=amqp://rabbitmq
-            - DATABASE_URL=postgresql://postgres:ZMM5n72yUAdreTC3v9jZ@musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com:5432/musescore?schema=public
+        env_file:
+            - .env
         depends_on:
             - rabbitmq
         networks:

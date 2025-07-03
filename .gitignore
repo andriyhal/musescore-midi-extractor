@@ -10,3 +10,7 @@ logs/
 
 #
 /generated/prisma
+
+download_log.csv
+
+debug_score.html
