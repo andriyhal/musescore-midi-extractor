@@ -7,6 +7,7 @@ import {
     s3ListFiles,
     s3FileRemove,
     loadMidiToS3,
+    getJsonForArtistFromS3,
 } from "../controllers/index.js";
 
 const router = express.Router();
@@ -24,5 +25,7 @@ router.patch("/score-status", updateScoreData);
 
 router.get("/s3-items", s3ListFiles);
 router.delete("/s3-item", s3FileRemove);
+
+router.post("/s3-artist-json", getJsonForArtistFromS3);
 
 export default router;

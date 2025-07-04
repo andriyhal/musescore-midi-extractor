@@ -1,4 +1,8 @@
-import { getS3ListFiles, deleteS3File } from "../services/index.js";
+import {
+    getS3ListFiles,
+    deleteS3File,
+    getArtistJson,
+} from "../services/index.js";
 
 export const s3ListFiles = async (req, res) => {
     try {
@@ -22,5 +26,21 @@ export const s3FileRemove = async (req, res) => {
     } catch (error) {
         console.error("Error deleting S3 file:", error);
         res.status(500).json({ error: "Failed to delete S3 file" });
+    }
+};
+export const getJsonForArtistFromS3 = async (req, res) => {
+    const { artist } = req.body;
+    if (!artist) {
+        return res.status(400).json({ error: "Artist parameter is required" });
+    }
+    try {
+        const json = await getArtistJson(artist);
+        if (!json) {
+            return res.status(404).json({ error: "Artist JSON not found" });
+        }
+        res.json(json);
+    } catch (error) {
+        console.error("Error retrieving JSON for artist from S3:", error);
+        res.status(500).json({ error: "Failed to retrieve JSON for artist" });
     }
 };
