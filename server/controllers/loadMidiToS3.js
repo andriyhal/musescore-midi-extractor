@@ -1,11 +1,18 @@
-import puppeteer from "puppeteer";
+import { Readable } from "stream";
 import fs from "fs";
 import path from "path";
-import axios from "axios";
 import dotenv from "dotenv";
+
+import puppeteer from "puppeteer";
+import axios from "axios";
 import { load } from "cheerio";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+    S3Client,
+    PutObjectCommand,
+    GetObjectCommand,
+} from "@aws-sdk/client-s3";
 import createCsvWriter from "csv-writer";
+import { streamToString } from "../utils/index.js";
 
 // Load environment variables
 const result = dotenv.config();
@@ -151,7 +158,7 @@ async function* getLinks() {
     const genre = "classical";
     const instrumentations = "Solo Piano";
     const instruments = "Piano";
-    const offset = 1;
+    const offset = 10;
     let page = 1;
     let total = 0;
     let fetched = 1741;
@@ -206,7 +213,7 @@ const s3 = new S3Client({
     },
 });
 // S3_BUCKET can be set via .env, otherwise will be musescore-scraped-library
-const S3_BUCKET = process.env.AWS_S3_BUCKET || "musescore-scraper";
+const S3_BUCKET = process.env.AWS_S3_BUCKET || "musescore-scraped-library";
 
 // CSV writer setup
 const csvWriter = createCsvWriter.createObjectCsvWriter({
@@ -230,6 +237,54 @@ async function uploadToS3(localPath, s3Key) {
     });
     await s3.send(command);
     return `https://${S3_BUCKET}.s3.amazonaws.com/${encodeURIComponent(s3Key)}`;
+}
+
+async function updateJsonFileInS3(artist, pieceMetadata) {
+    const jsonKey = `${artist}/composer.json`;
+
+    let composerData = {
+        composer: artist,
+        pieces: [],
+    };
+
+    try {
+        const getCommand = new GetObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: jsonKey,
+        });
+        const response = await s3.send(getCommand);
+
+        const jsonString = await streamToString(response.Body);
+        composerData = JSON.parse(jsonString);
+
+        console.log(`Loaded existing composer.json for ${artist}`);
+    } catch (err) {
+        if (err.name === "NoSuchKey" || err.$metadata?.httpStatusCode === 404) {
+            console.log(
+                `Composer.json not found for artist: ${artist}, creating new...`
+            );
+            composerData = {
+                composer: artist,
+                pieces: [],
+            };
+        } else {
+            console.error("Error reading composer.json:", err);
+            throw err;
+        }
+    }
+
+    composerData.pieces.push(pieceMetadata);
+
+    const putCommand = new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: jsonKey,
+        Body: JSON.stringify(composerData, null, 2),
+        ContentType: "application/json",
+    });
+
+    await s3.send(putCommand);
+
+    console.log(`The composer.json file updated for ${artist}`);
 }
 
 function sanitizeFileName(name) {
@@ -292,6 +347,13 @@ async function processScore(scoreObj, cookieHeader) {
                         `${artist}/${s3FileName}`
                     );
                     console.log("S3 upload success:", s3Url);
+                    await updateJsonFileInS3(artist, {
+                        id,
+                        url,
+                        title,
+                        musescore_id,
+                    });
+
                     await markScoreDownloaded(url, true);
                 } catch (e) {
                     console.error("S3 upload error:", e.message);
@@ -361,3 +423,10 @@ export const loadMidiToS3 = async (req, res) => {
         res.status(500).json({ error: "Failed to process MIDI files." });
     }
 };
+
+// updateJsonFileInS3("William B. Bradbury", {
+//     id: "cmcet6ak7000072n39iukwzbu",
+//     url: "https://musescore.com/user/19710/scores/33816",
+//     title: "Für Elise – Beethoven",
+//     musescore_id: 33816,
+// });

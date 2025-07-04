@@ -1,4 +1,3 @@
-import { prisma } from "../../prisma/prisma.js";
 import { getScores } from "../services/prismaScoreDb.js";
 
 export const getScoresData = async (req, res) => {
