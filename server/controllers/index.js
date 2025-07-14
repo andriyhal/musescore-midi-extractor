@@ -7,5 +7,6 @@ export {
     s3ListFiles,
     s3FileRemove,
     getJsonForArtistFromS3,
+    downloadS3File,
 } from "./s3DataControllers.js";
 export { loadMidiToS3 } from "./loadMidiToS3.js";

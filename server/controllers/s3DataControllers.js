@@ -2,6 +2,7 @@ import {
     getS3ListFiles,
     deleteS3File,
     getArtistJson,
+    getS3File,
 } from "../services/index.js";
 
 export const s3ListFiles = async (req, res) => {
@@ -22,6 +23,7 @@ export const s3FileRemove = async (req, res) => {
     }
     try {
         await deleteS3File(key);
+
         res.json({ message: "File deleted successfully" });
     } catch (error) {
         console.error("Error deleting S3 file:", error);
@@ -42,5 +44,19 @@ export const getJsonForArtistFromS3 = async (req, res) => {
     } catch (error) {
         console.error("Error retrieving JSON for artist from S3:", error);
         res.status(500).json({ error: "Failed to retrieve JSON for artist" });
+    }
+};
+export const downloadS3File = async (req, res) => {
+    const { s3Key, downloadBaseDir } = req.body;
+    if (!s3Key) {
+        return res.status(400).json({ error: "Required parameter missed" });
+    }
+    try {
+        await getS3File(s3Key, downloadBaseDir);
+
+        res.json({ message: "File deleted successfully" });
+    } catch (error) {
+        console.error("Error deleting S3 file:", error);
+        res.status(500).json({ error: "Failed to delete S3 file" });
     }
 };
