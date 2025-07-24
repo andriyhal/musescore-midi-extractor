@@ -1,4 +1,4 @@
-import { updateScoreSf } from "../services/index.js";
+import { updateScore } from "../services/prismaScoreDb.js";
 
 export const updateScoreData = async (req, res) => {
     const { url, is_download } = req.body;
@@ -9,7 +9,8 @@ export const updateScoreData = async (req, res) => {
     console.log("New status:", is_download);
 
     try {
-        await updateScoreSf({ url, is_download });
+        await updateScore({ url, is_download });
+
         res.json({
             status: "Success",
             message: `Score with url: ${url}, updated successfully`,

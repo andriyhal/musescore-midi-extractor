@@ -7,23 +7,14 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const parseDirty = require("dirty-json").parse;
 
-import { BatchQueue, delayer, proxyGetRequest } from "../server/utils/index.js";
-
-import {
-    snowflakeClient,
-    insertScoresSfBatchIfNotExists,
-} from "../server/services/index.js";
+import { delayer, proxyGetRequest } from "../server/utils/index.js";
+import { updateScore } from "../server/services/prismaScoreDb.js";
 
 dotenv.config();
 
 const RABBITMQ_URL = process.env.RABBITMQ_URL;
 const QUEUE = process.env.QUEUE;
 const PARALLEL_REQUEST = 20;
-const BATCH_SIZE = 100;
-
-const batchQueue = new BatchQueue(BATCH_SIZE, async (batch) => {
-    await insertScoresSfBatchIfNotExists(batch, snowflakeClient);
-});
 
 class ParseError extends Error {
     constructor(message) {
@@ -86,43 +77,75 @@ const parsingDataFromPage = async (scoreUrl) => {
 
         const details = jsonPart;
 
+        // console.log({
+        //     id: details.store.score.id,
+        //     title: details.store.score.title,
+        //     url: scoreUrl,
+        //     publisher: details.store.score.user.name,
+        //     composer: details.store.page.data.score.composer_name,
+        //     date_created: details.store.page.data.score.date_created,
+        //     date_updated: details.store.page.data.score.date_updated,
+        //     pages: details.store.page.data.score.pages_count,
+        //     duration: details.store.page.data.score.duration,
+        //     info: details.store.page.data.score.body,
+        //     measures: details.store.page.data.score.measures,
+        //     keysig: details.store.page.data.score.keysig,
+        //     difficultyLevel: details.store.page.data.score.complexity,
+        //     genres: details.store.page.data.genres.map((e) => e.name),
+        //     instrumentations:
+        //         details.store.page.data.score.instrumentations.map(
+        //             (e) => e.name
+        //         ),
+        //     instruments: details.store.page.data.score.instruments.map(
+        //         (e) => e.name
+        //     ),
+        //     categoryPages: details.store.page.data.score.category_pages.map(
+        //         (e) => e.name
+        //     ),
+        //     scoresJson: details,
+        //     count_views: details.store.page.data.count_views,
+        //     count_favorites: details.store.page.data.count_favorites,
+        //     count_comments: details.store.page.data.count_comments,
+        //     rating: details.store.page.data.score.rating.rating,
+        //     rating_count: details.store.page.data.score.rating.count,
+        // });
+
         return {
-            MUSESCORE_ID: details.store.score.id,
-            TITLE: details.store.score.title,
-            URL: scoreUrl,
-            PUBLISHER: details.store.score.user.name,
-            COMPOSER: details.store.page.data.score.composer_name,
-            ARTIST: details.store.page.data.score.artist_name,
-            DATE_CREATED: details.store.page.data.score.date_created,
-            DATE_UPDATED: details.store.page.data.score.date_updated,
-            PAGES: details.store.page.data.score.pages_count,
-            DURATION: details.store.page.data.score.duration,
-            INFO: details.store.page.data.score.body,
-            MEASURES: details.store.page.data.score.measures,
-            KEYSIG: details.store.page.data.score.keysig,
-            DIFFICULTYLEVEL: details.store.page.data.score.complexity,
-            GENRES: details.store.page.data.genres.map((e) => e.name),
-            INSTRUMENTATIONS:
+            musescore_id: details.store.score.id,
+            title: details.store.score.title,
+            url: scoreUrl,
+            publisher: details.store.score.user.name,
+            composer: details.store.page.data.score.composer_name,
+            artist: details.store.page.data.score.artist_name,
+            date_created: details.store.page.data.score.date_created,
+            date_updated: details.store.page.data.score.date_updated,
+            pages: details.store.page.data.score.pages_count,
+            duration: details.store.page.data.score.duration,
+            info: details.store.page.data.score.body,
+            measures: details.store.page.data.score.measures,
+            keysig: details.store.page.data.score.keysig,
+            difficultyLevel: details.store.page.data.score.complexity,
+            genres: details.store.page.data.genres.map((e) => e.name),
+            instrumentations:
                 details.store.page.data.score.instrumentations.map(
                     (e) => e.name
                 ),
-            INSTRUMENTS: details.store.page.data.score.instruments.map(
+            instruments: details.store.page.data.score.instruments.map(
                 (e) => e.name
             ),
-            CATEGORYPAGES: details.store.page.data.score.category_pages.map(
+            categoryPages: details.store.page.data.score.category_pages.map(
                 (e) => e.name
             ),
-            SCORESJSON: details.store,
-            COUNT_VIEWS: details.store.page.data.count_views,
-            COUNT_FAVORITES: details.store.page.data.count_favorites,
-            COUNT_COMMENTS: details.store.page.data.count_comments,
-            RATING: details.store.page.data.score.rating.rating,
-            RATING_COUNT: details.store.page.data.score.rating.count,
-            IS_DOWNLOAD: false,
+            scoresJson: details.store,
+            count_views: details.store.page.data.count_views,
+            count_favorites: details.store.page.data.count_favorites,
+            count_comments: details.store.page.data.count_comments,
+            rating: details.store.page.data.score.rating.rating,
+            rating_count: details.store.page.data.score.rating.count,
         };
     } catch (err) {
         console.error(
-            `Error processing URL: ${scoreUrl}. Status:${err.status}`
+            `Error processing URL: ${scoreUrl}. Status:${err.status}\n`
         );
         throw err;
     }
@@ -138,29 +161,25 @@ const consume = async () => {
     ch.consume(QUEUE, async (msg) => {
         if (msg !== null) {
             const scoreUrl = msg.content.toString();
-            // console.log(`Current url: ${scoreUrl}`);
+            console.log(`Current url: ${scoreUrl}`);
             try {
                 const scoreDat = await parsingDataFromPage(scoreUrl);
-                // console.log(`Url: ${scoreUrl} parsed!`);
-                await delayer(500);
-                await batchQueue.add(scoreDat);
 
+                await updateScore(scoreDat);
+                console.log(`Url: ${scoreUrl} done!`);
+                await delayer(2500);
                 ch.ack(msg);
             } catch (err) {
                 if (err instanceof ParseError) {
-                    console.error(`Parse ${err.message}`);
+                    console.error(`Parse Error: ${err.message}`);
                     ch.nack(msg, false, false); // DO NOT REQUEUE
                     await delayer(3000);
                 } else if (err.status === 404) {
                     console.error(`404 Not Found: ${scoreUrl}`);
                     ch.nack(msg, false, false); // DO NOT REQUEUE
                     await delayer(3000);
-                } else if (err.message.includes("has locked table")) {
-                    console.error(`Lock error: ${err.message}`);
-                    await delayer(5000);
-                    ch.nack(msg, false, true); // REQUEUE
                 } else {
-                    console.error(`Consumer ${err}`);
+                    console.error(`Consumer Error: ${err}`);
                     await delayer(3000);
                     ch.nack(msg, false, true); // REQUEUE for retry
                 }
@@ -169,14 +188,15 @@ const consume = async () => {
     });
 };
 
-process.on("SIGINT", async () => {
-    await batchQueue.flush(true);
-    process.exit();
-});
+consume().catch(console.error);
 
-const start = async () => {
-    await snowflakeClient.init();
-    await consume();
-};
-
-start().catch(console.error);
+// (async () => {
+//     try {
+//         await parsingDataFromPage(
+//             "https://musescore.com/user/42725/scores/107770"
+//         );
+//     } catch (err) {
+//         console.error(`Caught top-level error: ${err.message}`);
+//         console.error(`Status: ${err.status}`);
+//     }
+// })();

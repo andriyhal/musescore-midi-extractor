@@ -2,16 +2,15 @@ import { parseStringPromise } from "xml2js";
 import pLimit from "p-limit";
 
 import { QueueProducer } from "../services/index.js";
-
+import { addScore } from "../services/prismaScoreDb.js";
 import { delayer } from "../utils/delayer.js";
-import { getRequestWithRetry } from "../utils/index.js";
+import { proxyGetRequest } from "../utils/proxyRequest.js";
 
 const producer = new QueueProducer();
-const limit = pLimit(1000);
-
+const limit = pLimit(20);
 const sitemapScraper = async (url) => {
     try {
-        const pageResponse = await getRequestWithRetry(url, { timeout: 15000 });
+        const pageResponse = await proxyGetRequest(url);
 
         if (!pageResponse.data) return null;
 
@@ -25,6 +24,12 @@ const sitemapScraper = async (url) => {
 };
 const saveScoresToDbAndQueue = async (scoreUrl) => {
     try {
+        const urlParts = scoreUrl.split("/");
+        const scoreId = Number(urlParts[urlParts.length - 1]);
+
+        await addScore({ musescore_id: scoreId, url: scoreUrl });
+        console.log(`✔ Saved to DB: ${scoreUrl}`);
+
         await producer.sendMessage(scoreUrl);
         console.log(`Sent to queue: ${scoreUrl}`);
     } catch (err) {
@@ -46,7 +51,7 @@ const getAllScoresFromPage = async (url) => {
             urls.map((url) =>
                 limit(async () => {
                     await saveScoresToDbAndQueue(url);
-                    await delayer(200);
+                    await delayer(500);
                 })
             )
         );
@@ -83,7 +88,7 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
 
         for (const url of scorePageLinks) {
             await getAllScoresFromPage(url);
-            await delayer(100);
+            await delayer(1000);
         }
 
         await producer.close();

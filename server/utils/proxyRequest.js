@@ -34,21 +34,3 @@ export const proxyGetRequest = async (url, axiosConfig = {}) => {
         throw err;
     }
 };
-
-const requestWithRetries = (requestFunc, retries = 3, delayMs = 500) => {
-    return async (url, config = {}) => {
-        for (let attempt = 1; attempt <= retries; attempt++) {
-            try {
-                return await requestFunc(url, config);
-            } catch (error) {
-                if (attempt === retries) throw error;
-                console.warn(
-                    `Attempt ${attempt} failed, retrying in ${delayMs}ms...`
-                );
-                await new Promise((res) => setTimeout(res, delayMs));
-            }
-        }
-    };
-};
-
-export const getRequestWithRetry = requestWithRetries(proxyGetRequest, 20, 500);
