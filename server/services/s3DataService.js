@@ -30,14 +30,11 @@ const s3 = new S3Client({
 const S3_BUCKET = process.env.AWS_S3_BUCKET || "musescore-scraped-library";
 
 export const getS3ListFiles = async () => {
-    console.log(S3_BUCKET);
-
     const result = await s3.send(
         new ListObjectsV2Command({
             Bucket: S3_BUCKET,
         })
     );
-    console.log(result);
 
     return result.Contents ? result.Contents : [];
 };

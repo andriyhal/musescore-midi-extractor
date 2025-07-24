@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import amqp from "amqplib";
 
 import apiRoutes from "./routes/index.js";
+import { snowflakeClient } from "./services/index.js";
 
 dotenv.config();
 
@@ -16,10 +17,15 @@ app.use("/api", apiRoutes);
 
 try {
     await amqp.connect(RABBITMQ_URL);
-    console.log("Connecting to RabbitMQ successful!");
+    await snowflakeClient.init();
+    console.log(
+        "Connecting to RabbitMQ successful! \n ----------------------------------"
+    );
 } catch (err) {
-    console.error("Connected to RabbitMQ error:", err);
+    console.error("Connected to services error:", err);
 }
 app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(
+        `Server running on http://localhost:${PORT} \n ----------------------------------`
+    );
 });

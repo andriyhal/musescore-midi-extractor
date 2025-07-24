@@ -1,6 +1,5 @@
 import express from "express";
 import {
-    getScore,
     getScoresData,
     extractScoreLinksFromSitemap,
     updateScoreData,
@@ -9,6 +8,7 @@ import {
     loadMidiToS3,
     getJsonForArtistFromS3,
     downloadS3File,
+    deleteScore,
 } from "../controllers/index.js";
 
 const router = express.Router();
@@ -19,7 +19,7 @@ router.get("/ping", async (req, res) => {
 
 router.get("/get-scores-links", extractScoreLinksFromSitemap);
 
-router.get("/score", getScore);
+router.delete("/score", deleteScore);
 router.post("/scores", getScoresData);
 router.patch("/score-status", updateScoreData);
 
