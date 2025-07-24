@@ -14,7 +14,6 @@ class SnowflakeClient {
     constructor() {
         this.connection = null;
     }
-
     async init() {
         const privateKey = process.env.SF_KEY.replace(/\\n/g, "\n");
 
@@ -37,7 +36,7 @@ class SnowflakeClient {
                     reject(err);
                 } else {
                     console.log(
-                        "Connecting to Snowflake. successful! \n ----------------------------------"
+                        "Connecting to Snowflake. successful! \n ---------------------------------"
                     );
                     resolve(conn);
                 }
