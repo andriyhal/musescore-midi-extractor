@@ -1,6 +1,6 @@
-import { prisma } from "../../prisma/prisma.js";
+import { snowflakeClient } from "../services/index.js";
 
-export const getScore = async (req, res) => {
+export const deleteScore = async (req, res) => {
     try {
         const { url } = req.query;
 
@@ -8,8 +8,8 @@ export const getScore = async (req, res) => {
             return res.status(400).json({ error: "Missing url parameter" });
         }
 
-        const score = await prisma.score.findUnique({
-            where: { url },
+        const score = await snowflakeClient.deleteMuseScoreScore({
+            URL: url,
         });
 
         if (!score) {
@@ -20,7 +20,7 @@ export const getScore = async (req, res) => {
 
         res.json(score);
     } catch (error) {
-        console.error("Error in getScores:", error);
+        console.error("Error in deleteScore:", error);
         res.status(500).json({ error: "Internal server error" });
     }
 };

@@ -1,18 +1,19 @@
-import { Readable } from "stream";
 import fs from "fs";
-import path from "path";
 import dotenv from "dotenv";
-
-import puppeteer from "puppeteer";
 import axios from "axios";
-import { load } from "cheerio";
+
 import {
     S3Client,
     PutObjectCommand,
     GetObjectCommand,
 } from "@aws-sdk/client-s3";
 import createCsvWriter from "csv-writer";
-import { streamToString } from "../utils/index.js";
+import { delayer, midiFileLoader, streamToString } from "../utils/index.js";
+import { BatchQueue } from "../utils/batchQueue.js";
+import {
+    updateIsDownloadScoresSfBatch,
+    updateScoreSf,
+} from "../services/snowflakeService.js";
 
 // Load environment variables
 const result = dotenv.config();
@@ -21,147 +22,29 @@ if (result.error) {
     process.exit(1);
 }
 
-const LOGIN_URL = "https://musescore.com/user/login";
-const LOGIN_CREDENTIALS = {
-    username: process.env.MUSESCORE_USERNAME,
-    password: process.env.MUSESCORE_PASSWORD,
-};
+const UPDATE_BATCH_SIZE = 10;
 
-function cookiesToHeader(cookies) {
-    return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
-}
+const updateBatchQueue = new BatchQueue(
+    UPDATE_BATCH_SIZE,
+    updateIsDownloadScoresSfBatch,
+    10000
+);
 
-async function loginAndGetCookies() {
-    console.log("Logging in...");
+const composerLocks = new Map();
 
-    const browser = await puppeteer.launch({ headless: "new" });
-    const page = await browser.newPage();
-    await page.goto(LOGIN_URL, { waitUntil: "networkidle2" });
-    await page.waitForSelector("#username");
-    await page.waitForSelector("#password");
-    await page.waitForSelector("button[type=submit]");
-
-    console.log("Filling in username...");
-    for (const char of LOGIN_CREDENTIALS.username) {
-        await page.type("#username", char);
-        await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    console.log("Filling in password...");
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    for (const char of LOGIN_CREDENTIALS.password) {
-        await page.type("#password", char);
-        await new Promise((resolve) => setTimeout(resolve, 200));
-    }
-    console.log("Submitting...");
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    await page.evaluate(() => {
-        const passwordField = document.querySelector("#password");
-        if (passwordField) {
-            let form = passwordField;
-            while (form && form.tagName !== "FORM") {
-                form = form.parentElement;
-            }
-            if (form) {
-                form.submit();
-            }
-        }
-    });
-    console.log("Waiting for navigation...");
-    await page.waitForNavigation({ waitUntil: "networkidle2", timeout: 60000 });
-
-    console.log("Waiting for cookies...");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    console.log("Getting cookies...");
-    const cookies = await page.cookies();
-    console.log("Closing browser...");
-    await browser.close();
-
-    console.log(
-        "---------------------------------------------------------------------------------"
-    );
-
-    return cookies;
-}
-
-async function fetchScorePageHtml(scoreUrl, cookieHeader) {
-    console.log("Fetching score page HTML: ", scoreUrl);
-
-    const response = await axios.get(scoreUrl, {
-        headers: {
-            "User-Agent": "Mozilla/5.0",
-            Cookie: cookieHeader,
-            Referer: "https://musescore.com/",
-            Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-            Connection: "keep-alive",
-        },
-    });
-    fs.writeFileSync("debug_score.html", response.data);
-    return response.data;
-}
-
-function extractDownloadLinksFromHtml(html) {
-    const $ = load(html);
-    const divs = $("div.js-store");
-    let links = null;
-    divs.each((i, el) => {
-        const d = $(el).attr("data-content");
-        if (!d) return;
-        let decoded;
-        try {
-            decoded = JSON.parse(
-                d
-                    .replace(/&quot;/g, '"')
-                    .replace(/&amp;/g, "&")
-                    .replace(/&#39;/g, "'")
-            );
-        } catch (e) {
-            // Not a valid JSON, skip
-            return;
-        }
-        // Try both possible locations for type_download_list
-        if (decoded?.store?.page?.data?.type_download_list) {
-            links = decoded.store.page.data.type_download_list;
-        } else if (decoded?.store?.score?.type_download_list) {
-            links = decoded.store.score.type_download_list;
-        }
-    });
-    if (!links) {
-        throw new Error("No download links found in any div.js-store");
-    }
-    return links;
-}
-
-async function downloadFileWithCookies(url, outPath, cookieHeader, referer) {
-    const response = await axios.get(url, {
-        responseType: "arraybuffer",
-        headers: {
-            "User-Agent": "Mozilla/5.0",
-            Cookie: cookieHeader,
-            Referer: referer,
-            Origin: "https://musescore.com",
-            Accept: "*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Cache-Control": "no-cache",
-            Pragma: "no-cache",
-            Connection: "keep-alive",
-        },
-    });
-    fs.writeFileSync(outPath, response.data);
-    console.log("File saved:", outPath);
-}
+const S3_ENDPOINT = process.env.AWS_S3_ENDPOINT || `https://s3.amazonaws.com`;
+const S3_BUCKET = process.env.AWS_S3_BUCKET || "musescore-scraped-library";
+const PROD_URL = process.env.PROD_URL;
 
 async function* getLinks() {
-    const apiUrl = "http://localhost:3001/api/scores";
+    const apiUrl = `http://${PROD_URL}:3001/api/scores`;
     const genre = "classical";
     const instrumentations = "Solo Piano";
     const instruments = "Piano";
-    const offset = 10;
+    const offset = 10; //! TEST CHANGE 100
     let page = 1;
     let total = 0;
-    let fetched = 1741;
+    let fetched = 95;
     while (true) {
         const body = {
             genre,
@@ -174,17 +57,23 @@ async function* getLinks() {
             const response = await axios.post(apiUrl, body, {
                 headers: { "Content-Type": "application/json" },
             });
+
             const data = response.data;
+
             if (page === 1) total = data.total;
+
+            console.log("PAGE:", page);
+
             if (Array.isArray(data.results) && data.results.length > 0) {
                 yield data.results.map((r) => ({
-                    id: r.id,
-                    musescore_id: r.musescore_id,
-                    title: r.title,
-                    url: r.url,
-                    artist: r.artist || "Unknown Artist",
+                    id: r.ID,
+                    musescore_id: r.MUSESCORE_ID,
+                    title: r.TITLE,
+                    url: r.URL,
+                    artist: r.ARTIST || "Unknown Artist",
                 }));
                 fetched += data.results.length;
+                console.log(`Fatched: ${fetched}`);
             } else {
                 break;
             }
@@ -197,14 +86,6 @@ async function* getLinks() {
     }
 }
 
-function extractScoreIdFromUrl(url) {
-    // Extracts the score ID from a MuseScore URL
-    const match = url.match(/\/scores\/(\d+)/);
-    return match ? match[1] : "unknown";
-}
-
-// S3 endpoint (can be set via .env, otherwise AWS default)
-const S3_ENDPOINT = process.env.AWS_S3_ENDPOINT || `https://s3.amazonaws.com`;
 const s3 = new S3Client({
     region: "eu-west-2",
     credentials: {
@@ -212,10 +93,7 @@ const s3 = new S3Client({
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
     },
 });
-// S3_BUCKET can be set via .env, otherwise will be musescore-scraped-library
-const S3_BUCKET = process.env.AWS_S3_BUCKET || "musescore-scraped-library";
 
-// CSV writer setup
 const csvWriter = createCsvWriter.createObjectCsvWriter({
     path: "download_log.csv",
     header: [
@@ -240,193 +118,160 @@ async function uploadToS3(localPath, s3Key) {
 }
 
 async function updateJsonFileInS3(artist, pieceMetadata) {
-    const jsonKey = `${artist}/composer.json`;
+    if (!composerLocks.has(artist)) {
+        composerLocks.set(artist, Promise.resolve());
+    }
 
-    let composerData = {
-        composer: artist,
-        pieces: [],
-    };
+    const lock = composerLocks.get(artist);
+    const newLock = lock
+        .then(async () => {
+            const jsonKey = `${artist}/composer.json`;
 
-    try {
-        const getCommand = new GetObjectCommand({
-            Bucket: S3_BUCKET,
-            Key: jsonKey,
-        });
-        const response = await s3.send(getCommand);
-
-        const jsonString = await streamToString(response.Body);
-        composerData = JSON.parse(jsonString);
-
-        console.log(`Loaded existing composer.json for ${artist}`);
-    } catch (err) {
-        if (err.name === "NoSuchKey" || err.$metadata?.httpStatusCode === 404) {
-            console.log(
-                `Composer.json not found for artist: ${artist}, creating new...`
-            );
-            composerData = {
+            let composerData = {
                 composer: artist,
                 pieces: [],
             };
-        } else {
-            console.error("Error reading composer.json:", err);
-            throw err;
-        }
-    }
 
-    composerData.pieces.push(pieceMetadata);
+            try {
+                const getCommand = new GetObjectCommand({
+                    Bucket: S3_BUCKET,
+                    Key: jsonKey,
+                });
+                const response = await s3.send(getCommand);
 
-    const putCommand = new PutObjectCommand({
-        Bucket: S3_BUCKET,
-        Key: jsonKey,
-        Body: JSON.stringify(composerData, null, 2),
-        ContentType: "application/json",
-    });
+                const jsonString = await streamToString(response.Body);
+                composerData = JSON.parse(jsonString);
 
-    await s3.send(putCommand);
+                // console.log(`Loaded existing composer.json for ${artist}`);
+            } catch (err) {
+                if (
+                    err.name === "NoSuchKey" ||
+                    err.$metadata?.httpStatusCode === 404
+                ) {
+                    console.log(
+                        `Composer.json not found for artist: ${artist}, creating new...`
+                    );
+                    composerData = {
+                        composer: artist,
+                        pieces: [],
+                    };
+                } else {
+                    console.error("Error reading composer.json:", err);
+                    throw err;
+                }
+            }
 
-    console.log(`The composer.json file updated for ${artist}`);
+            composerData.pieces.push(pieceMetadata);
+
+            const putCommand = new PutObjectCommand({
+                Bucket: S3_BUCKET,
+                Key: jsonKey,
+                Body: JSON.stringify(composerData, null, 2),
+                ContentType: "application/json",
+            });
+
+            await s3.send(putCommand);
+
+            // console.log(`The composer.json file updated for ${artist}`);
+        })
+        .finally(() => {
+            if (composerLocks.get(artist) === newLock) {
+                composerLocks.delete(artist);
+            }
+        });
+
+    composerLocks.set(artist, newLock);
+
+    await newLock;
 }
 
 function sanitizeFileName(name) {
     return name.replace(/[^a-zA-Z0-9_\-\.]/g, "_").slice(0, 80);
 }
 
-async function markScoreDownloaded(url, is_download = false) {
-    try {
-        await axios.patch(
-            "http://3.72.82.245:3001/api/score-status",
-            {
-                url,
-                is_download,
-            },
-            {
-                headers: { "Content-Type": "application/json" },
-                maxBodyLength: Infinity,
-            }
-        );
-        console.log("Marked as downloaded in API:", url);
-    } catch (e) {
-        console.error("Failed to mark as downloaded in API:", url, e.message);
-    }
+async function markScoreDownloadedBatch(url, is_download = false) {
+    await updateBatchQueue.add({ url, is_download });
 }
 
-async function processScore(scoreObj, cookieHeader) {
+async function processScore(scoreObj) {
     const { id, musescore_id, title, url, artist } = scoreObj;
-    const html = await fetchScorePageHtml(url, cookieHeader);
-    const links = extractDownloadLinksFromHtml(html);
+    let s3Url;
+    let midiFilePath;
+    console.log("Downloading MIDI file:", url);
 
-    if (links.length === 0) {
-        console.log("No download links found for score:", url);
-        return;
-    }
-
-    for (const link of links) {
-        const ext = link.type;
-        if (
-            ext === "mid" &&
-            link.url &&
-            typeof link.url === "string" &&
-            link.url.startsWith("http")
-        ) {
-            console.log("Downloading MIDI file:", link.url);
+    try {
+        midiFilePath = await midiFileLoader(musescore_id, url);
+        try {
             const s3FileName = `${id}_${musescore_id}_${sanitizeFileName(
                 title
             )}.mid`;
-            const outPath = path.join(process.cwd(), s3FileName);
-            let s3Url = "";
-            try {
-                await downloadFileWithCookies(
-                    link.url,
-                    outPath,
-                    cookieHeader,
-                    url
-                );
-                try {
-                    s3Url = await uploadToS3(
-                        outPath,
-                        `${artist}/${s3FileName}`
-                    );
-                    console.log("S3 upload success:", s3Url);
-                    await updateJsonFileInS3(artist, {
-                        id,
-                        url,
-                        title,
-                        musescore_id,
-                    });
-
-                    await markScoreDownloaded(url, true);
-                } catch (e) {
-                    console.error("S3 upload error:", e.message);
-                }
-            } catch (e) {
-                console.error("Download error:", e.message);
-            }
-            await csvWriter.writeRecords([
-                { id, musescore_id, title, link_to_download: s3Url },
-            ]);
-            try {
-                fs.unlinkSync(outPath);
-            } catch {}
-            console.log(
-                "---------------------------------------------------------------------------------"
-            );
+            s3Url = await uploadToS3(midiFilePath, `${artist}/${s3FileName}`);
+            // console.log("S3 upload success:", s3Url);
+            await updateJsonFileInS3(artist, {
+                id,
+                url,
+                title,
+                musescore_id,
+            });
+            await markScoreDownloadedBatch(url, true);
+        } catch (e) {
+            console.error("S3 upload error:", e.message);
+            throw e;
         }
+    } catch (e) {
+        console.error("Download error:", e.message);
+        throw e;
+    } finally {
+        try {
+            fs.unlinkSync(midiFilePath);
+        } catch {}
     }
 }
 
-async function main(cookieHeader) {
-    const scoreUrlArg = process.argv[2];
-    let scoreUrls = [];
-    if (!scoreUrlArg) {
-        //console.log('No score URL provided as argument. Using getLinks() generator.');
-        for await (const scores of getLinks()) {
-            for (const scoreObj of scores) {
-                try {
-                    await new Promise((resolve) => setTimeout(resolve, 2000));
-                    await processScore(scoreObj, cookieHeader);
-                } catch (e) {
-                    console.error(
-                        `Error processing ${scoreObj.url}:`,
-                        e.message
-                    );
-                }
-            }
-        }
-    } else {
-        scoreUrls = [scoreUrlArg];
-        for (const scoreUrl of scoreUrls) {
-            try {
-                await processScore(
-                    {
-                        id: "cmcet6ak7000072n39iukwzbu",
-                        musescore_id: extractScoreIdFromUrl(scoreUrl),
-                        title: "Für Elise – Beethoven",
-                        url: scoreUrl,
-                    },
-                    cookieHeader
-                );
-            } catch (e) {
-                console.error(`Error processing ${scoreUrl}:`, e.message);
-            }
+async function main() {
+    let processedCount = 0;
+    for await (const scores of getLinks()) {
+        for (let i = 0; i < scores.length; i += 2) {
+            const batch = scores.slice(i, i + 2);
+            await Promise.all(
+                batch.map(async (scoreObj) => {
+                    try {
+                        await delayer(200);
+                        await processScore(scoreObj);
+                        processedCount++;
+                        console.log(
+                            "---------------------------------------------------------------------------------"
+                        );
+                        console.log(`Loaded scores: ${processedCount}.`);
+                        console.log(
+                            "---------------------------------------------------------------------------------"
+                        );
+                    } catch (e) {
+                        console.log(
+                            "---------------------------------------------------------------------------------"
+                        );
+                        console.error(
+                            `Error processing ${scoreObj.url}:`,
+                            e.message
+                        );
+                        console.log(
+                            "---------------------------------------------------------------------------------"
+                        );
+                    }
+                })
+            );
         }
     }
+    console.log(`Total loaded scores: ${processedCount}`);
+    await updateBatchQueue.flush(true);
 }
 
 export const loadMidiToS3 = async (req, res) => {
     try {
-        const cookies = await loginAndGetCookies();
-        const cookieHeader = cookiesToHeader(cookies);
-        main(cookieHeader);
+        main();
         res.json({ message: "MIDI files processing and uploading to S3." });
     } catch (error) {
         console.error("Error in loadMiditoS3:", error);
         res.status(500).json({ error: "Failed to process MIDI files." });
     }
 };
-
-// updateJsonFileInS3("William B. Bradbury", {
-//     id: "cmcet6ak7000072n39iukwzbu",
-//     url: "https://musescore.com/user/19710/scores/33816",
-//     title: "Für Elise – Beethoven",
-//     musescore_id: 33816,
-// });

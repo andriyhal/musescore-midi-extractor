@@ -14,3 +14,12 @@ logs/
 download_log.csv
 
 debug_score.html
+
+/downloads
+
+# Приватні ключі
+rsa_key.p8
+rsa_key.pub
+*.pem
+*.key
+.env
