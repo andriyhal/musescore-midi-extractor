@@ -29,15 +29,24 @@ const s3 = new S3Client({
 
 const S3_BUCKET = process.env.AWS_S3_BUCKET || "musescore-scraped-library";
 
-export const getS3ListFiles = async () => {
-    const result = await s3.send(
-        new ListObjectsV2Command({
-            Bucket: S3_BUCKET,
-        })
-    );
+export const getS3ListFiles = async (continuationToken) => {
+    console.log(continuationToken);
 
-    return result.Contents ? result.Contents : [];
+    const params = {
+        Bucket: S3_BUCKET,
+    };
+
+    if (continuationToken) {
+        params.ContinuationToken = continuationToken;
+    }
+
+    const result = await s3.send(new ListObjectsV2Command(params));
+    return {
+        contents: result.Contents || [],
+        nextToken: result.IsTruncated ? result.NextContinuationToken : null,
+    };
 };
+
 export const deleteS3File = async (key) => {
     try {
         await s3.send(

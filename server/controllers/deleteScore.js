@@ -8,19 +8,17 @@ export const deleteScore = async (req, res) => {
             return res.status(400).json({ error: "Missing url parameter" });
         }
 
-        await snowflakeClient.removeAllDataFromTable(); //! REMOVE
+        const score = await snowflakeClient.deleteMuseScoreScore({
+            URL: url,
+        });
 
-        // const score = await snowflakeClient.deleteMuseScoreScore({
-        //     URL: url,
-        // });
+        if (!score) {
+            return res
+                .status(404)
+                .json({ error: `No score found for url: ${url}` });
+        }
 
-        // if (!score) {
-        //     return res
-        //         .status(404)
-        //         .json({ error: `No score found for url: ${url}` });
-        // }
-
-        // res.json(score);
+        res.json(score);
     } catch (error) {
         console.error("Error in deleteScore:", error);
         res.status(500).json({ error: "Internal server error" });

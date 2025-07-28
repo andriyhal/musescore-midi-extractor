@@ -22,10 +22,10 @@ class SnowflakeClient {
             username: process.env.SF_USER,
             privateKey: privateKey,
             authenticator: "SNOWFLAKE_JWT",
-            warehouse: "SNOWFLAKE_LEARNING_WH",
+            warehouse: "COMPUTE_WH",
             database: "PROD",
             schema: "MIDI",
-            role: "PROD_RW",
+            role: "engineer",
             clientSessionKeepAlive: true,
             loginTimeout: 30,
         });
@@ -36,7 +36,7 @@ class SnowflakeClient {
                     reject(err);
                 } else {
                     console.log(
-                        "Connecting to Snowflake. successful! \n ---------------------------------"
+                        "Connecting to Snowflake successful! \n---------------------------------"
                     );
                     resolve(conn);
                 }
@@ -125,6 +125,7 @@ class SnowflakeClient {
         const sql = `DELETE FROM PROD.MIDI.MUSESCORE_SCORES WHERE ${where};`;
         return this._execute(sql);
     }
+
     async removeAllDataFromTable() {
         const sql = `DELETE FROM PROD.MIDI.MUSESCORE_SCORES;`;
         return this._execute(sql);
@@ -132,24 +133,6 @@ class SnowflakeClient {
 }
 
 export const snowflakeClient = new SnowflakeClient();
-
-export const addScoreSf = async (data) => {
-    const id =
-        typeof crypto.randomUUID === "function"
-            ? crypto.randomUUID()
-            : crypto.randomBytes(16).toString("hex");
-    const dataWithId = { ...data, id };
-    const checkSql = `SELECT COUNT(*) AS count FROM PROD.MIDI.MUSESCORE_SCORES WHERE URL = ${snowflakeClient._formatValue(
-        data.url
-    )};`;
-    const checkRes = await snowflakeClient._execute(checkSql);
-    if (checkRes[0] && checkRes[0].COUNT > 0) {
-        throw new Error(`Score ${data.url} already exists`);
-    }
-    return await snowflakeClient.insertMuseScoreScore(
-        mapToSnowflakeColumns(dataWithId)
-    );
-};
 
 export const updateIsDownloadScoresSfBatch = async (batch) => {
     const setParts = [
@@ -252,13 +235,13 @@ export const insertScoresSfBatchIfNotExists = async (
         console.log("Inserted to SF DONE!");
         console.log("----------------------------");
 
-        const urls = batch.map((b) => b.URL);
-        const sql2 = `SELECT COUNT(*) as cnt FROM PROD.MIDI.MUSESCORE_SCORES WHERE URL IN (${urls
-            .map((u) => `'${u.replace(/'/g, "''")}'`)
-            .join(",")})`;
-        const res = await snowflakeClient._execute(sql2);
-        console.log(`Вставлено у БД: ${res[0].CNT} з ${batch.length}`);
-        console.log("----------------------------");
+        // const urls = batch.map((b) => b.URL);
+        // const sql2 = `SELECT COUNT(*) as cnt FROM PROD.MIDI.MUSESCORE_SCORES WHERE URL IN (${urls
+        //     .map((u) => `'${u.replace(/'/g, "''")}'`)
+        //     .join(",")})`;
+        // const res = await snowflakeClient._execute(sql2);
+        // console.log(`Вставлено у БД: ${res[0].CNT} з ${batch.length}`);
+        // console.log("----------------------------");
     } catch (error) {
         console.log("Insert error", error.message);
     }
@@ -372,12 +355,4 @@ const toSnowflakeCol = (key) => {
     if (key === "difficultyLevel") return "DIFFICULTYLEVEL";
     else if (key === "categoryPages") return "CATEGORYPAGES";
     else return key.replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase();
-};
-
-const mapToSnowflakeColumns = (data) => {
-    const mapped = {};
-    for (const [k, v] of Object.entries(data)) {
-        mapped[toSnowflakeCol(k)] = v;
-    }
-    return mapped;
 };

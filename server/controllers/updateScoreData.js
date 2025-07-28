@@ -5,8 +5,6 @@ export const updateScoreData = async (req, res) => {
     if (!url || is_download === undefined || is_download === null) {
         throw new Error("Missing required fields");
     }
-    console.log("Updating score data for URL:", url);
-    console.log("New status:", is_download);
 
     try {
         await updateScoreSf({ url, is_download });

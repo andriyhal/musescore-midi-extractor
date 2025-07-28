@@ -24,7 +24,7 @@ router.post("/scores", getScoresData);
 router.patch("/score-status", updateScoreData);
 
 router.get("/s3-save-midi", loadMidiToS3);
-router.get("/s3-items", s3ListFiles);
+router.post("/s3-items", s3ListFiles);
 router.delete("/s3-item", s3FileRemove);
 router.post("/s3-artist-json", getJsonForArtistFromS3);
 router.post("/s3-download-item", downloadS3File);

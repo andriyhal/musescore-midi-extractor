@@ -1,5 +1,5 @@
 export class BatchQueue {
-    constructor(batchSize, onBatchReady, flushIntervalMs = 30000) {
+    constructor(batchSize, onBatchReady, flushIntervalMs = 10000) {
         this.batchSize = batchSize;
         this.onBatchReady = onBatchReady;
         this.queue = [];
@@ -26,6 +26,7 @@ export class BatchQueue {
         const batch = this.queue.splice(0, this.batchSize);
         try {
             await this.onBatchReady(batch);
+            console.log(`Remaining in queue: ${this.queue.length}`);
         } catch (e) {
             console.error("Batch update error:", e);
         }

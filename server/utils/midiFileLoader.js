@@ -7,7 +7,7 @@ import { proxyGetRequest, getRequestWithRetry } from "./index.js";
 
 const getSuffix = async (scoreUrl) => {
     let suffixUrls = [];
-    const response = await proxyGetRequest(scoreUrl);
+    const response = await getRequestWithRetry(scoreUrl);
 
     const text = response.data;
     suffixUrls = [
@@ -17,7 +17,7 @@ const getSuffix = async (scoreUrl) => {
     ].map((match) => match[1]);
 
     for (const url of suffixUrls) {
-        const response = await proxyGetRequest(url);
+        const response = await getRequestWithRetry(url);
         const text = response.data;
         const match = text.match(/"([^"]+)"\)\.substr\(0,4\)/);
         if (match) {
@@ -31,23 +31,6 @@ const getApiAuth = async (id, type, index, scoreUrl) => {
     const sufix = await getSuffix(scoreUrl);
     const code = `${id}${type}${index}${sufix}`;
     return md5(code).toString().slice(0, 4);
-};
-
-const proxyGet = async (url, config = {}, retries = 10, delayMs = 500) => {
-    for (let attempt = 1; attempt <= retries; attempt++) {
-        try {
-            return await proxyGetRequest(url, {
-                ...config,
-                responseType: config.responseType || "arraybuffer",
-            });
-        } catch (error) {
-            if (attempt === retries) throw error;
-            console.warn(
-                `Attempt ${attempt} failed, retrying in ${delayMs}ms...`
-            );
-            await new Promise((res) => setTimeout(res, delayMs));
-        }
-    }
 };
 
 async function downloadFile(url, filename) {
@@ -97,7 +80,6 @@ export const midiFileLoader = async (id, scoreUrl) => {
     const midiFilePath = path.join(downloadsDir, `${id}.mid`);
 
     await downloadFile(midiInformationDetails.info.url, midiFilePath);
-    console.log("MIDI file downloaded!");
     return midiFilePath;
 };
 

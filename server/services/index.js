@@ -8,7 +8,6 @@ export {
 
 export {
     snowflakeClient,
-    addScoreSf,
     updateScoreSf,
     getScoresSf,
     updateIsDownloadScoresSfBatch,
