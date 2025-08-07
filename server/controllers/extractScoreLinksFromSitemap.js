@@ -26,7 +26,6 @@ const sitemapScraper = async (url) => {
 const saveScoresToDbAndQueue = async (scoreUrl) => {
     try {
         await producer.sendMessage(scoreUrl);
-        // console.log(`Sent to queue: ${scoreUrl}`);
     } catch (err) {
         console.error(`Error processing ${scoreUrl}: ${err.message}`);
     }
@@ -60,11 +59,6 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
     let { page } = req.query;
     page = parseInt(page) || 0;
 
-    const pageSize = 1;
-
-    const start = page * pageSize;
-    const end = start + pageSize;
-
     try {
         const parsedSitemapPage = await sitemapScraper(
             "https://musescore.com/sitemap.xml"
@@ -73,8 +67,6 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
             .map((s) => s.loc[0])
             .filter((link) => /sitemap_scores\d+\.xml$/.test(link))
             .slice(page);
-
-        // console.log(scorePageLinks);
 
         res.status(200).json({
             message: `Extracting score links started! Total pages from sitemap: ${scorePageLinks.length}`,

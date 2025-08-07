@@ -19,7 +19,7 @@ dotenv.config();
 const RABBITMQ_URL = process.env.RABBITMQ_URL;
 const QUEUE = process.env.QUEUE;
 const PARALLEL_REQUEST = 20;
-const BATCH_SIZE = 100;
+const BATCH_SIZE = 50;
 
 const batchQueue = new BatchQueue(BATCH_SIZE, async (batch) => {
     await insertScoresSfBatchIfNotExists(batch, snowflakeClient);

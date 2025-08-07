@@ -153,7 +153,68 @@ export const updateIsDownloadScoresSfBatch = async (batch) => {
     `;
     await snowflakeClient._execute(sql);
 };
+//! For validation
+const escapeJsonForSnowflake = (val) => {
+    try {
+        let jsonString = JSON.stringify(val);
 
+        jsonString = jsonString.replace(/[\x00-\x1F\x7F]/g, "");
+
+        jsonString = jsonString.replace(/\v/g, "");
+
+        jsonString = jsonString
+            .replace(/\\/g, "\\\\")
+            .replace(/'/g, "\\'")
+            .replace(/\n/g, "\\n")
+            .replace(/\r/g, "\\r")
+            .replace(/\t/g, "\\t");
+
+        return `PARSE_JSON('${jsonString}')`;
+    } catch (e) {
+        console.error("JSON escape failed:", e.message);
+        return "NULL";
+    }
+};
+
+const escapeForSnowflake = (val, fieldType = "string") => {
+    if (val === null || val === undefined) return "NULL";
+
+    switch (fieldType) {
+        case "json":
+            return escapeJsonForSnowflake(val);
+        case "string":
+            return escapeStringForSnowflake(val);
+        case "array":
+            return escapeArrayForSnowflake(val);
+        default:
+            return escapeStringForSnowflake(val);
+    }
+};
+const escapeStringForSnowflake = (str) => {
+    if (typeof str !== "string") return str;
+
+    return str
+        .replace(/[\x00-\x1F\x7F]/g, "")
+        .replace(/\v/g, "")
+        .replace(/'/g, "''")
+        .replace(/\\/g, "\\\\")
+        .trim();
+};
+
+const escapeArrayForSnowflake = (arr) => {
+    if (!Array.isArray(arr)) return "NULL";
+
+    const cleaned = arr
+        .filter((item) => item !== null && item !== undefined && item !== "")
+        .map((item) => {
+            if (typeof item === "string") {
+                return escapeStringForSnowflake(item);
+            }
+            return item;
+        });
+
+    return `'${JSON.stringify(cleaned).replace(/'/g, "''")}'`;
+};
 export const insertScoresSfBatchIfNotExists = async (
     batch,
     snowflakeClient
@@ -180,68 +241,67 @@ export const insertScoresSfBatchIfNotExists = async (
     ];
 
     const selectParts = batchWithId
-        .map((data) => {
+        .map((data, index) => {
             const values = fields
                 .map((key) => {
                     let val = data[key];
-                    if (variantFields.includes(key)) {
-                        let jsonString;
-                        try {
-                            jsonString = JSON.stringify(val)
-                                .replace(/\\/g, "\\\\") // escape backslash
-                                .replace(/'/g, "\\'"); // escape single quote
-                        } catch (e) {
-                            console.error(
-                                "❌ Не валідний JSON:",
-                                val,
-                                e.message
-                            );
-                            jsonString = "null";
-                        }
-                        return `PARSE_JSON('${jsonString}')`;
-                    } else if (
-                        key === "DATE_CREATED" ||
-                        key === "DATE_UPDATED"
-                    ) {
-                        if (typeof val === "number" && val > 9999999999) {
-                            return `TO_TIMESTAMP(${val / 1000})`;
-                        } else if (typeof val === "number") {
-                            return `TO_TIMESTAMP(${val})`;
-                        } else if (typeof val === "string") {
-                            return `'${val}'`;
-                        }
-                    } else if (typeof val === "string")
-                        return `'${val.replace(/'/g, "''")}'`;
-                    else if (typeof val === "number") return val;
-                    else if (typeof val === "boolean")
-                        return val ? "TRUE" : "FALSE";
-                    else if (val === null) return "NULL";
 
-                    return `'${JSON.stringify(val).replace(/'/g, "''")}'`;
+                    try {
+                        if (variantFields.includes(key)) {
+                            return escapeForSnowflake(val, "json");
+                        } else if (
+                            key === "DATE_CREATED" ||
+                            key === "DATE_UPDATED"
+                        ) {
+                            if (typeof val === "number" && val > 9999999999) {
+                                return `TO_TIMESTAMP(${val / 1000})`;
+                            } else if (typeof val === "number") {
+                                return `TO_TIMESTAMP(${val})`;
+                            } else if (typeof val === "string") {
+                                return `'${escapeStringForSnowflake(val)}'`;
+                            }
+                        } else if (typeof val === "string") {
+                            return `'${escapeStringForSnowflake(val)}'`;
+                        } else if (typeof val === "number") {
+                            return val;
+                        } else if (typeof val === "boolean") {
+                            return val ? "TRUE" : "FALSE";
+                        } else if (val === null) {
+                            return "NULL";
+                        } else {
+                            return `'${escapeStringForSnowflake(
+                                JSON.stringify(val)
+                            )}'`;
+                        }
+                    } catch (fieldErr) {
+                        console.error(
+                            `❌ Error processing field ${key}:`,
+                            fieldErr.message
+                        );
+                        console.error(`❌ Value:`, val);
+                        return "NULL";
+                    }
                 })
                 .join(", ");
-            // WHERE NOT EXISTS для унікальності по URL
-            return `SELECT ${values} WHERE NOT EXISTS (SELECT 1 FROM PROD.MIDI.MUSESCORE_SCORES WHERE URL = '${data.URL.replace(
-                /'/g,
-                "''"
-            )}')`;
+
+            const urlEscaped = escapeStringForSnowflake(data.URL);
+            const selectPart = `SELECT ${values} WHERE NOT EXISTS (SELECT 1 FROM PROD.MIDI.MUSESCORE_SCORES WHERE URL = '${urlEscaped}')`;
+
+            if (index < 3) {
+                console.log(`�� SQL part ${index + 1}:`, selectPart);
+            }
+
+            return selectPart;
         })
         .join(" UNION ALL ");
 
     const sql = `INSERT INTO PROD.MIDI.MUSESCORE_SCORES (${columns}) ${selectParts};`;
     try {
+        console.log("Generated SQL:", sql);
         await snowflakeClient._execute(sql);
         console.log("----------------------------");
         console.log("Inserted to SF DONE!");
         console.log("----------------------------");
-
-        // const urls = batch.map((b) => b.URL);
-        // const sql2 = `SELECT COUNT(*) as cnt FROM PROD.MIDI.MUSESCORE_SCORES WHERE URL IN (${urls
-        //     .map((u) => `'${u.replace(/'/g, "''")}'`)
-        //     .join(",")})`;
-        // const res = await snowflakeClient._execute(sql2);
-        // console.log(`Вставлено у БД: ${res[0].CNT} з ${batch.length}`);
-        // console.log("----------------------------");
     } catch (error) {
         console.log("Insert error", error.message);
     }
