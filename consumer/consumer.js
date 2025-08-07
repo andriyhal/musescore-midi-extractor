@@ -86,13 +86,18 @@ const parsingDataFromPage = async (scoreUrl) => {
 
         const details = jsonPart;
 
+        const composer = details.store.page.data.score.composer_name.trim();
+        const artist = details.store.page.data.score.artist_name
+            ? details.store.page.data.score.artist_name.trim()
+            : composer;
+
         return {
             MUSESCORE_ID: details.store.score.id,
-            TITLE: details.store.score.title,
+            TITLE: details.store.score.title.trim(),
             URL: scoreUrl,
-            PUBLISHER: details.store.score.user.name,
-            COMPOSER: details.store.page.data.score.composer_name,
-            ARTIST: details.store.page.data.score.artist_name,
+            PUBLISHER: details.store.score.user.name.trim(),
+            COMPOSER: composer,
+            ARTIST: artist,
             DATE_CREATED: details.store.page.data.score.date_created,
             DATE_UPDATED: details.store.page.data.score.date_updated,
             PAGES: details.store.page.data.score.pages_count,

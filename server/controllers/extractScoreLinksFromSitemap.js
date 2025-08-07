@@ -26,7 +26,7 @@ const sitemapScraper = async (url) => {
 const saveScoresToDbAndQueue = async (scoreUrl) => {
     try {
         await producer.sendMessage(scoreUrl);
-        console.log(`Sent to queue: ${scoreUrl}`);
+        // console.log(`Sent to queue: ${scoreUrl}`);
     } catch (err) {
         console.error(`Error processing ${scoreUrl}: ${err.message}`);
     }
@@ -72,20 +72,28 @@ export const extractScoreLinksFromSitemap = async (req, res) => {
         const scorePageLinks = parsedSitemapPage.sitemapindex.sitemap
             .map((s) => s.loc[0])
             .filter((link) => /sitemap_scores\d+\.xml$/.test(link))
-            .slice(start, end);
+            .slice(page);
 
-        console.log(scorePageLinks);
+        // console.log(scorePageLinks);
 
         res.status(200).json({
             message: `Extracting score links started! Total pages from sitemap: ${scorePageLinks.length}`,
         });
         await producer.connect();
 
+        let parsedUrls = 0;
         for (const url of scorePageLinks) {
+            console.log(
+                `Send to the parser url${url}. Still in queue ${
+                    scorePageLinks.length - parsedUrls
+                }`
+            );
             await getAllScoresFromPage(url);
-            await delayer(100);
+            console.log("Waiting 20 minutes ... ");
+            await delayer(20 * 60 * 1000);
+            parsedUrls++;
         }
-
+        console.log("Finished parsing all URLs.");
         await producer.close();
     } catch (error) {
         console.log(`Loading links from sitemap error:${error.message}`);
