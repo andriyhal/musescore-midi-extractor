@@ -293,7 +293,6 @@ export const insertScoresSfBatchIfNotExists = async (
 
     const sql = `INSERT INTO PROD.MIDI.MUSESCORE_SCORES (${columns}) ${selectParts};`;
     try {
-        console.log("Generated SQL:", sql);
         await snowflakeClient._execute(sql);
         console.log("----------------------------");
         console.log("Inserted to SF DONE!");
