@@ -287,10 +287,6 @@ export const insertScoresSfBatchIfNotExists = async (
             const urlEscaped = escapeStringForSnowflake(data.URL);
             const selectPart = `SELECT ${values} WHERE NOT EXISTS (SELECT 1 FROM PROD.MIDI.MUSESCORE_SCORES WHERE URL = '${urlEscaped}')`;
 
-            if (index < 3) {
-                console.log(`�� SQL part ${index + 1}:`, selectPart);
-            }
-
             return selectPart;
         })
         .join(" UNION ALL ");
