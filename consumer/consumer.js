@@ -164,6 +164,12 @@ const consume = async () => {
                     console.error(`Lock error: ${err.message}`);
                     await delayer(5000);
                     ch.nack(msg, false, true); // REQUEUE
+                } else if (err instanceof TypeError) {
+                    console.error(
+                        `TypeError: ${err.message} for URL: ${scoreUrl}`
+                    );
+                    ch.nack(msg, false, false); // DO NOT REQUEUE
+                    await delayer(3000);
                 } else {
                     console.error(`Consumer ${err}`);
                     await delayer(3000);
