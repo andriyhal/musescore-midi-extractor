@@ -15,9 +15,6 @@ services:
             - /app/wait-for-it.sh
             - rabbitmq
             - "5672"
-            - /app/wait-for-it.sh
-            - musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com
-            - "5432"
             - node
             - /app/server/index.js
     consumer:
@@ -35,8 +32,6 @@ services:
             - rabbitmq
             - "5672"
             - /app/wait-for-it.sh
-            - musescore.crgga8cgyw0v.eu-central-1.rds.amazonaws.com
-            - "5432"
             - node
             - /app/consumer/consumer.js
     rabbitmq:
